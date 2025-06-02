@@ -51,20 +51,6 @@ const RNA_SQL = `SELECT
 	FROM expression 
 	WHERE expression.gene_id = ?1`
 
-const MICROARRAY_SQL = `SELECT
-	expression.id,
-	expression.probe_id,
-	expression.rma
-	FROM expression 
-	WHERE expression.gene_id = ?1`
-
-const (
-	GEX_TYPE_COUNTS string = "Counts"
-	GEX_TYPE_TPM    string = "TPM"
-	GEX_TYPE_VST    string = "VST"
-	GEX_TYPE_RMA    string = "RMA"
-)
-
 type DatasetCache struct {
 	dir     string
 	dataset *Dataset
@@ -76,7 +62,7 @@ func NewDatasetCache(dir string, dataset *Dataset) *DatasetCache {
 
 func (cache *DatasetCache) FindGenes(genes []string) ([]*GexGene, error) {
 
-	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Path))
+	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Url))
 
 	if err != nil {
 		return nil, err
@@ -90,10 +76,7 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*GexGene, error) {
 		var gene GexGene
 		err := db.QueryRow(GENE_SQL, g).Scan(
 			&gene.Id,
-			&gene.Hugo,
-			&gene.Mgi,
 			&gene.Ensembl,
-			&gene.Refseq,
 			&gene.GeneSymbol)
 
 		if err == nil {
@@ -110,7 +93,7 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*GexGene, error) {
 	return ret, nil
 }
 
-func (cache *DatasetCache) FindRNASeqValues(gexType string,
+func (cache *DatasetCache) FindGexValues(
 	geneIds []string) (*SearchResults, error) {
 
 	genes, err := cache.FindGenes(geneIds)
@@ -119,15 +102,9 @@ func (cache *DatasetCache) FindRNASeqValues(gexType string,
 		return nil, err
 	}
 
-	return cache.RNASeqValues(gexType, genes)
-}
-
-func (cache *DatasetCache) RNASeqValues(gexType string,
-	genes []*GexGene) (*SearchResults, error) {
-
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Path))
+	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Url))
 
 	if err != nil {
 		return nil, err
@@ -138,7 +115,6 @@ func (cache *DatasetCache) RNASeqValues(gexType string,
 	ret := SearchResults{
 
 		Dataset:  cache.dataset.PublicId,
-		GexType:  gexType,
 		Features: make([]*ResultFeature, 0, len(genes))}
 
 	var id int
@@ -158,15 +134,6 @@ func (cache *DatasetCache) RNASeqValues(gexType string,
 			return nil, err
 		}
 
-		switch gexType {
-		case GEX_TYPE_TPM:
-			gex = tpm
-		case GEX_TYPE_VST:
-			gex = vst
-		default:
-			gex = counts
-		}
-
 		values := make([]float32, 0, DATASET_SIZE)
 
 		for stringValue := range strings.SplitSeq(gex, ",") {
@@ -183,69 +150,6 @@ func (cache *DatasetCache) RNASeqValues(gexType string,
 
 		//datasetResults.Samples = append(datasetResults.Samples, &sample)
 		ret.Features = append(ret.Features, &ResultFeature{Gene: gene, Expression: values})
-
-	}
-
-	return &ret, nil
-}
-
-func (cache *DatasetCache) FindMicroarrayValues(
-	geneIds []string) (*SearchResults, error) {
-
-	genes, err := cache.FindGenes(geneIds)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return cache.MicroarrayValues(genes)
-}
-
-func (cache *DatasetCache) MicroarrayValues(
-
-	genes []*GexGene) (*SearchResults, error) {
-
-	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Path))
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
-
-	ret := SearchResults{
-		Dataset:  cache.dataset.PublicId,
-		GexType:  "rma",
-		Features: make([]*ResultFeature, 0, len(genes))}
-
-	var id int
-	var probeId string
-	var rma string
-
-	for _, gene := range genes {
-		err := db.QueryRow(MICROARRAY_SQL, gene.Id).Scan(
-			&id,
-			&probeId,
-			&rma)
-
-		if err != nil {
-			return nil, err
-		}
-
-		values := make([]float32, 0, DATASET_SIZE)
-
-		for stringValue := range strings.SplitSeq(rma, ",") {
-			value, err := strconv.ParseFloat(stringValue, 32)
-
-			if err != nil {
-				return nil, err
-			}
-
-			values = append(values, float32(value))
-		}
-
-		//datasetResults.Samples = append(datasetResults.Samples, &sample)
-		ret.Features = append(ret.Features, &ResultFeature{ProbeId: probeId, Gene: gene, Expression: values})
 
 	}
 

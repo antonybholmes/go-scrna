@@ -8,11 +8,6 @@ import (
 
 var instance *scrna.DatasetsCache
 var once sync.Once
-var technologies []scrna.Technology
-
-func Technologies() []scrna.Technology {
-	return technologies
-}
 
 func InitCache(dir string) (*scrna.DatasetsCache, error) {
 	once.Do(func() {
@@ -42,25 +37,7 @@ func Datasets(species string, technology string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, technology)
 }
 
-func AllTechnologies() (map[string]map[string][]string, error) {
-	return instance.AllTechnologies()
-}
-
-func FindRNASeqValues(datasetIds []string,
-	scrnaType string,
+func FindGexValues(datasetIds []string,
 	geneIds []string) ([]*scrna.SearchResults, error) {
-	return instance.FindRNASeqValues(datasetIds, scrnaType, geneIds)
+	return instance.FindGexValues(datasetIds, geneIds)
 }
-
-func FindMicroarrayValues(datasetIds []string,
-	geneIds []string) ([]*scrna.SearchResults, error) {
-	return instance.FindMicroarrayValues(datasetIds, geneIds)
-}
-
-// func GetDataset(uuid string) (*scrna.Dataset, error) {
-// 	return instance.GetDataset(uuid)
-// }
-
-// func Search(location *dna.Location, uuids []string) (*scrna.SearchResults, error) {
-// 	return instance.Search(location, uuids)
-// }

@@ -49,12 +49,11 @@ const ALL_TECHNOLOGIES_SQL = `SELECT DISTINCT
 const DATASETS_SQL = `SELECT 
 	datasets.id,
 	datasets.public_id,
-	datasets.species,
-	datasets.technology,
-	datasets.platform,
-	datasets.institution,
 	datasets.name,
-	datasets.path,
+	datasets.institution,
+	datasets.species,
+	datasets.assembly,
+	datasets.url,
 	datasets.description
 	FROM datasets 
 	WHERE datasets.species = ?1 AND datasets.technology = ?2
@@ -63,12 +62,11 @@ const DATASETS_SQL = `SELECT
 const DATASET_SQL = `SELECT 
 	datasets.id,
 	datasets.public_id,
-	datasets.species,
-	datasets.technology,
-	datasets.platform,
-	datasets.institution,
 	datasets.name,
-	datasets.path,
+	datasets.institution,
+	datasets.species,
+	datasets.assembly,
+	datasets.url,
 	datasets.description
 	FROM datasets 
 	WHERE datasets.public_id = ?1`
@@ -79,11 +77,6 @@ const DATASET_SQL = `SELECT
 // 	ORDER BY datasets.name`
 
 // type GexValue string
-
-const (
-	RNA_SEQ_TECHNOLOGY    string = "RNA-seq"
-	MICROARRAY_TECHNOLOGY string = "Microarray"
-)
 
 type Idtype struct {
 	Name string `json:"name"`
@@ -107,17 +100,8 @@ type GexValue = Idtype
 
 type GexGene struct {
 	Ensembl    string `json:"ensembl"`
-	Refseq     string `json:"refseq"`
-	Hugo       string `json:"hugo"`
-	Mgi        string `json:"mgi"`
 	GeneSymbol string `json:"geneSymbol"`
 	Id         int    `json:"-"`
-}
-
-type Technology struct {
-	Name     string   `json:"name"`
-	PublicId string   `json:"publicId"`
-	GexTypes []string `json:"gexTypes"`
 }
 
 type Sample struct {
@@ -132,12 +116,11 @@ type Dataset struct {
 	PublicId    string    `json:"publicId"`
 	Name        string    `json:"name"`
 	Species     string    `json:"species"`
-	Technology  string    `json:"technology"`
-	Platform    string    `json:"platform"`
-	Path        string    `json:"-"`
+	Assembly    string    `json:"assembly"`
+	Url         string    `json:"-"`
 	Institution string    `json:"institution"`
 	Samples     []*Sample `json:"samples"`
-	Id          int       `json:"id"`
+	Id          int       `json:"-"`
 	Description string    `json:"description"`
 }
 
@@ -189,7 +172,6 @@ type SearchResults struct {
 
 	//Dataset *Dataset      `json:"dataset"`
 	Dataset  string           `json:"dataset"`
-	GexType  string           `json:"gexType"`
 	Features []*ResultFeature `json:"features"`
 }
 
@@ -425,12 +407,11 @@ func (cache *DatasetsCache) Datasets(species string, technology string) ([]*Data
 		err := datasetRows.Scan(
 			&dataset.Id,
 			&dataset.PublicId,
-			&dataset.Species,
-			&dataset.Technology,
-			&dataset.Platform,
-			&dataset.Institution,
 			&dataset.Name,
-			&dataset.Path,
+			&dataset.Institution,
+			&dataset.Species,
+			&dataset.Assembly,
+			&dataset.Url,
 			&dataset.Description)
 
 		if err != nil {
@@ -441,9 +422,9 @@ func (cache *DatasetsCache) Datasets(species string, technology string) ([]*Data
 		// so use that as an estimate
 		dataset.Samples = make([]*Sample, 0, DATASET_SIZE)
 
-		log.Debug().Msgf("db %s", filepath.Join(cache.dir, dataset.Path))
+		log.Debug().Msgf("db %s", filepath.Join(cache.dir, dataset.Url))
 
-		db2, err := sql.Open("sqlite3", filepath.Join(cache.dir, dataset.Path))
+		db2, err := sql.Open("sqlite3", filepath.Join(cache.dir, dataset.Url))
 
 		if err != nil {
 			return nil, err
@@ -545,12 +526,11 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 	err = db.QueryRow(DATASET_SQL, datasetId).Scan(
 		&dataset.Id,
 		&dataset.PublicId,
-		&dataset.Species,
-		&dataset.Technology,
-		&dataset.Platform,
-		&dataset.Institution,
 		&dataset.Name,
-		&dataset.Path,
+		&dataset.Institution,
+		&dataset.Species,
+		&dataset.Assembly,
+		&dataset.Url,
 		&dataset.Description)
 
 	if err != nil {
@@ -560,8 +540,7 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) FindRNASeqValues(datasetIds []string,
-	gexType string,
+func (cache *DatasetsCache) FindGexValues(datasetIds []string,
 	geneIds []string) ([]*SearchResults, error) {
 
 	ret := make([]*SearchResults, 0, len(datasetIds))
@@ -575,33 +554,7 @@ func (cache *DatasetsCache) FindRNASeqValues(datasetIds []string,
 
 		datasetCache := NewDatasetCache(cache.dir, dataset)
 
-		res, err := datasetCache.FindRNASeqValues(gexType, geneIds)
-
-		if err != nil {
-			return nil, err
-		}
-
-		ret = append(ret, res)
-	}
-
-	return ret, nil
-}
-
-func (cache *DatasetsCache) FindMicroarrayValues(datasetIds []string,
-	geneIds []string) ([]*SearchResults, error) {
-
-	ret := make([]*SearchResults, 0, len(datasetIds))
-
-	for _, datasetId := range datasetIds {
-		dataset, err := cache.dataset(datasetId)
-
-		if err != nil {
-			return nil, err
-		}
-
-		datasetCache := NewDatasetCache(cache.dir, dataset)
-
-		res, err := datasetCache.FindMicroarrayValues(geneIds)
+		res, err := datasetCache.FindGexValues(geneIds)
 
 		if err != nil {
 			return nil, err
