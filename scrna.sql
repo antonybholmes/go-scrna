@@ -8,6 +8,7 @@ CREATE TABLE datasets (
 	institution TEXT NOT NULL,
 	species TEXT NOT NULL,
 	assembly TEXT NOT NULL,
+	cells INTEGER NOT NULL,
 	url TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	tags TEXT NOT NULL DEFAULT '');

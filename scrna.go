@@ -3,8 +3,6 @@ package scrna
 import (
 	"database/sql"
 	"path/filepath"
-
-	"github.com/rs/zerolog/log"
 )
 
 // approx size of dataset
@@ -53,6 +51,7 @@ const DATASETS_SQL = `SELECT
 	datasets.institution,
 	datasets.species,
 	datasets.assembly,
+	dataset.cells,
 	datasets.url,
 	datasets.description
 	FROM datasets 
@@ -66,6 +65,7 @@ const DATASET_SQL = `SELECT
 	datasets.institution,
 	datasets.species,
 	datasets.assembly,
+	dataset.cells,
 	datasets.url,
 	datasets.description
 	FROM datasets 
@@ -113,7 +113,7 @@ type Dataset struct {
 	Assembly    string `json:"assembly"`
 	Url         string `json:"-"`
 	Institution string `json:"institution"`
-	Samples     uint   `json:"samples"`
+	Cells       uint   `json:"cells"`
 	Id          int    `json:"-"`
 	Description string `json:"description"`
 }
@@ -308,6 +308,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 			&dataset.Institution,
 			&dataset.Species,
 			&dataset.Assembly,
+			&dataset.Cells,
 			&dataset.Url,
 			&dataset.Description)
 
@@ -315,21 +316,21 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 			return nil, err
 		}
 
-		log.Debug().Msgf("db %s", filepath.Join(cache.dir, dataset.Url))
+		// log.Debug().Msgf("db %s", filepath.Join(cache.dir, dataset.Url))
 
-		db2, err := sql.Open("sqlite3", filepath.Join(cache.dir, dataset.Url))
+		// db2, err := sql.Open("sqlite3", filepath.Join(cache.dir, dataset.Url))
 
-		if err != nil {
-			return nil, err
-		}
+		// if err != nil {
+		// 	return nil, err
+		// }
 
-		defer db2.Close()
+		// defer db2.Close()
 
-		err = db2.QueryRow(SAMPLE_COUNT_SQL, dataset.Id).Scan(&dataset.Samples)
+		// err = db2.QueryRow(SAMPLE_COUNT_SQL, dataset.Id).Scan(&dataset.Cells)
 
-		if err != nil {
-			return nil, err
-		}
+		// if err != nil {
+		// 	return nil, err
+		// }
 
 		datasets = append(datasets, &dataset)
 	}
@@ -355,6 +356,7 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 		&dataset.Institution,
 		&dataset.Species,
 		&dataset.Assembly,
+		&dataset.Cells,
 		&dataset.Url,
 		&dataset.Description)
 
@@ -365,7 +367,7 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) FindGexValues(datasetIds []string,
+func (cache *DatasetsCache) Gex(datasetIds []string,
 	geneIds []string) ([]*SearchResults, error) {
 
 	ret := make([]*SearchResults, 0, len(datasetIds))
@@ -379,7 +381,32 @@ func (cache *DatasetsCache) FindGexValues(datasetIds []string,
 
 		datasetCache := NewDatasetCache(dataset)
 
-		res, err := datasetCache.FindGexValues(geneIds)
+		res, err := datasetCache.Gex(geneIds)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, res)
+	}
+
+	return ret, nil
+}
+
+func (cache *DatasetsCache) Metadata(datasetIds []string) ([]*DatasetMetadata, error) {
+
+	ret := make([]*DatasetMetadata, 0, len(datasetIds))
+
+	for _, datasetId := range datasetIds {
+		dataset, err := cache.dataset(datasetId)
+
+		if err != nil {
+			return nil, err
+		}
+
+		datasetCache := NewDatasetCache(dataset)
+
+		res, err := datasetCache.Metadata()
 
 		if err != nil {
 			return nil, err

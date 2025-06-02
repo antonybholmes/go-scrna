@@ -38,6 +38,12 @@ for root, dirs, files in os.walk(dir):
             # Create a cursor object
             cursor = conn.cursor()
 
+            cursor.execute("SELECT count(id) FROM cells")
+
+            results = cursor.fetchone()
+
+            cells = results[0]
+
             # Execute a query to fetch data
             cursor.execute(
                 "SELECT public_id, name, institution, species, assembly, description FROM dataset"
@@ -52,6 +58,7 @@ for root, dirs, files in os.walk(dir):
                 # row.append(generate("0123456789abcdefghijklmnopqrstuvwxyz", 12))
                 # row.append(dataset)
                 # row.append("db")
+                row.append(cells)
                 row.append(path)
                 # row.append(dataset)
                 data.append(row)
@@ -63,7 +70,7 @@ with open(os.path.join(dir, "scrna.sql"), "w") as f:
     for row in data:
         values = ", ".join([f"'{v}'" for v in row])
         print(
-            f"INSERT INTO datasets (public_id, name, institution, species, assembly, description, url) VALUES ({values});",
+            f"INSERT INTO datasets (public_id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
             file=f,
         )
 

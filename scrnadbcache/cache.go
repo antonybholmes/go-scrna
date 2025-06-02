@@ -37,7 +37,11 @@ func Datasets(species string, technology string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, technology)
 }
 
-func FindGexValues(datasetIds []string,
+func Gex(datasetIds []string,
 	geneIds []string) ([]*scrna.SearchResults, error) {
-	return instance.FindGexValues(datasetIds, geneIds)
+	return instance.Gex(datasetIds, geneIds)
+}
+
+func Metadata(datasetIds []string) ([]*scrna.DatasetMetadata, error) {
+	return instance.Metadata(datasetIds)
 }

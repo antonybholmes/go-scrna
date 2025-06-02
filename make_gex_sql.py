@@ -17,6 +17,7 @@ parser.add_argument("-i", "--institution", help="institution")
 parser.add_argument("-s", "--species", help="species", default="Human")
 parser.add_argument("-a", "--assembly", help="assembly", default="GRCh38")
 parser.add_argument("-d", "--dir", help="dir")
+parser.add_argument("-c", "--clusters", help="clusters")
 
 args = parser.parse_args()
 dir = args.dir
@@ -28,6 +29,8 @@ gex_dir = os.path.join(dir, "gex")
 
 public_id = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 
+df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
+
 
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
@@ -35,6 +38,16 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
         f"INSERT INTO dataset (public_id, name, institution, species, assembly, gex_dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', '{gex_dir}');",
         file=sqlf,
     )
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
+    for i, row in df_clusters.iterrows():
+        print(
+            f"INSERT INTO cells (barcode, umap_x, umap_y, cluster, sc_class, sample) VALUES ('{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]}, {row["Cluster"]},'{row["Phenotype"]}','{row["Sample"]}');",
+            file=sqlf,
+        ),
+
+    print("COMMIT;", file=sqlf)
 
     print("BEGIN TRANSACTION;", file=sqlf)
 
