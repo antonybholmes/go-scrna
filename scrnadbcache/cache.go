@@ -1,4 +1,4 @@
-package scrnacache
+package scrnadbcache
 
 import (
 	"sync"
@@ -29,9 +29,9 @@ func Species() ([]string, error) {
 	return instance.Species()
 }
 
-// func Platforms(species string) ([]string, error) {
-// 	return instance.Plaforms(species)
-// }
+func Assemblies(species string) ([]string, error) {
+	return instance.Assemblies(species)
+}
 
 func Datasets(species string, technology string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, technology)

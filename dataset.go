@@ -1,68 +1,60 @@
 package scrna
 
 import (
+	"compress/gzip"
 	"database/sql"
+	"encoding/json"
+	"os"
 	"path/filepath"
-	"strconv"
-	"strings"
 
 	"github.com/rs/zerolog/log"
 )
 
 // keep them in the entered order so we can preserve
 // groupings such as N/GC/M which are not alphabetical
-const SAMPLES_SQL = `SELECT
-	samples.id,
-	samples.public_id,
-	samples.name
-	FROM samples
-	ORDER BY samples.id`
-
-const SAMPLE_ALT_NAMES_SQL = `SELECT
-	sample_alt_names.name,
-	sample_alt_names.value
-	FROM sample_alt_names
-	WHERE sample_alt_names.sample_id = ?1
-	ORDER by sample_alt_names.id`
-
-const SAMPLE_METADATA_SQL = `SELECT
-	sample_metadata.name,
-	sample_metadata.value
-	FROM sample_metadata
-	WHERE sample_metadata.sample_id = ?1
-	ORDER by sample_metadata.id`
+const SAMPLE_COUNT_SQL = `SELECT COUNT(samples.id) FROM samples`
 
 const GENE_SQL = `SELECT 
 	genes.id, 
-	genes.hugo_id,
-	genes.mgi_id,
 	genes.ensembl_id,
-	genes.refseq_id,
 	genes.gene_symbol 
 	FROM genes
-	WHERE genes.gene_symbol LIKE ?1 OR genes.hugo_id = ?1 OR genes.ensembl_id LIKE ?1 OR genes.refseq_id LIKE ?1 
+	WHERE genes.gene_symbol LIKE ?1 OR genes.ensembl_id LIKE ?1
 	LIMIT 1`
 
-const RNA_SQL = `SELECT
-	expression.id,
-	expression.counts,
-	expression.tpm,
-	expression.vst
-	FROM expression 
-	WHERE expression.gene_id = ?1`
+type Gene struct {
+	Ensembl    string `json:"ensembl"`
+	GeneSymbol string `json:"geneSymbol"`
+	Id         int    `json:"-"`
+	File       string `json:"-"`
+}
+
+type GexGene struct {
+	Id   string      `json:"id"`
+	Sym  string      `json:"sym"`
+	Data [][]float32 `json:"data"`
+}
+
+// Either a probe or gene
+type ResultFeature struct {
+	ProbeId string `json:"probeId,omitempty"`
+	Gene    *Gene  `json:"gene"`
+	//Platform     *ValueType       `json:"platform"`
+	//GexValue *GexValue    `json:"gexType"`
+	Expression []float32 `json:"expression"`
+}
 
 type DatasetCache struct {
-	dir     string
 	dataset *Dataset
 }
 
-func NewDatasetCache(dir string, dataset *Dataset) *DatasetCache {
-	return &DatasetCache{dir: dir, dataset: dataset}
+func NewDatasetCache(dataset *Dataset) *DatasetCache {
+	return &DatasetCache{dataset: dataset}
 }
 
-func (cache *DatasetCache) FindGenes(genes []string) ([]*GexGene, error) {
+func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 
-	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Url))
+	db, err := sql.Open("sqlite3", cache.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -70,14 +62,15 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*GexGene, error) {
 
 	defer db.Close()
 
-	ret := make([]*GexGene, 0, len(genes))
+	ret := make([]*Gene, 0, len(genes))
 
 	for _, g := range genes {
-		var gene GexGene
+		var gene Gene
 		err := db.QueryRow(GENE_SQL, g).Scan(
 			&gene.Id,
 			&gene.Ensembl,
-			&gene.GeneSymbol)
+			&gene.GeneSymbol,
+			&gene.File)
 
 		if err == nil {
 			// add as many genes as possible
@@ -104,7 +97,11 @@ func (cache *DatasetCache) FindGexValues(
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open("sqlite3", filepath.Join(cache.dir, cache.dataset.Url))
+	db, err := sql.Open("sqlite3", cache.dataset.Url)
+
+	datasetUrl := filepath.Dir(cache.dataset.Url)
+
+	sampleCount := cache.dataset.Samples
 
 	if err != nil {
 		return nil, err
@@ -113,37 +110,68 @@ func (cache *DatasetCache) FindGexValues(
 	defer db.Close()
 
 	ret := SearchResults{
-
 		Dataset:  cache.dataset.PublicId,
-		Features: make([]*ResultFeature, 0, len(genes))}
+		Features: make([]*ResultFeature, 0, len(genes)),
+	}
 
-	var id int
-	var counts string
-	var tpm string
-	var vst string
-	var gex string
+	var gexCache = make(map[string][]GexGene)
 
 	for _, gene := range genes {
-		err := db.QueryRow(RNA_SQL, gene.Id).Scan(
-			&id,
-			&counts,
-			&tpm,
-			&vst)
+		gexFile := filepath.Join(datasetUrl, gene.File)
 
-		if err != nil {
-			return nil, err
-		}
+		gexData, ok := gexCache[gexFile]
 
-		values := make([]float32, 0, DATASET_SIZE)
+		if !ok {
 
-		for stringValue := range strings.SplitSeq(gex, ",") {
-			value, err := strconv.ParseFloat(stringValue, 32)
-
+			f, err := os.Open(gexFile)
 			if err != nil {
 				return nil, err
 			}
+			defer f.Close()
 
-			values = append(values, float32(value))
+			// Create gzip reader
+			gz, err := gzip.NewReader(f)
+			if err != nil {
+				return nil, err
+			}
+			defer gz.Close()
+
+			// Example 1: decode into a map (for JSON object)
+			var data []GexGene
+
+			if err := json.NewDecoder(gz).Decode(&data); err != nil {
+				return nil, err
+			}
+
+			gexCache[gexFile] = data
+			gexData = data
+		}
+
+		// find the index of our gene
+
+		geneIndex := -1
+
+		for i, g := range gexData {
+			if g.Id == gene.Ensembl {
+				geneIndex = i
+				break
+			}
+		}
+
+		if geneIndex == -1 {
+			return nil, err
+		}
+
+		gexGeneData := gexData[geneIndex]
+
+		values := make([]float32, 0, sampleCount)
+
+		for _, gex := range gexGeneData.Data {
+			// data is sparse consisting of index, value pairs
+			// which we use to fill in the array
+			i := uint32(gex[0])
+			values[i] = gex[1]
+
 		}
 
 		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
