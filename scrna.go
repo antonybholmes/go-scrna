@@ -365,10 +365,10 @@ func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) Gex(datasetId string,
+func (cache *DatasetsCache) Gex(publicId string,
 	geneIds []string) (*SearchResults, error) {
 
-	dataset, err := cache.dataset(datasetId)
+	dataset, err := cache.dataset(publicId)
 
 	if err != nil {
 		return nil, err

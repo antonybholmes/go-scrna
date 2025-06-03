@@ -7,7 +7,7 @@ CREATE TABLE dataset (
 	assembly TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	tags TEXT NOT NULL DEFAULT '',
-	gex_dir TEXT NOT NULL
+	dir TEXT NOT NULL
 );
 
 CREATE TABLE cells (

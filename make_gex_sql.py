@@ -35,7 +35,7 @@ df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     print(
-        f"INSERT INTO dataset (public_id, name, institution, species, assembly, gex_dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', '{gex_dir}');",
+        f"INSERT INTO dataset (public_id, name, institution, species, assembly, dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', '{dir}');",
         file=sqlf,
     )
 
