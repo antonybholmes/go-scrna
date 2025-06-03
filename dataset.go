@@ -4,9 +4,11 @@ import (
 	"compress/gzip"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/antonybholmes/go-web"
 	"github.com/rs/zerolog/log"
 )
 
@@ -24,17 +26,27 @@ const METADATA_SQL = `SELECT
 	cells.sample
 	FROM cells`
 
-const GENE_SQL = `SELECT 
-	genes.id, 
-	genes.ensembl_id,
-	genes.gene_symbol 
-	FROM genes
-	WHERE genes.gene_symbol LIKE ?1 OR genes.ensembl_id LIKE ?1
+const GENES_SQL = `SELECT 
+	gex.id, 
+	gex.ensembl_id,
+	gex.gene_symbol 
+	FROM gex
+	ORDER BY gex.gene_symbol`
+
+const FIND_GENE_SQL = `SELECT 
+	gex.id, 
+	gex.ensembl_id,
+	gex.gene_symbol,
+	gex.file
+	FROM gex
+	WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
 	LIMIT 1`
 
+const SEARCH_GENE_SQL = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
+
 type Gene struct {
-	Ensembl    string `json:"ensembl"`
-	GeneSymbol string `json:"geneSymbol"`
+	Ensembl    string `json:"ens"`
+	GeneSymbol string `json:"sym"`
 	Id         int    `json:"-"`
 	File       string `json:"-"`
 }
@@ -91,7 +103,7 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 
 	for _, g := range genes {
 		var gene Gene
-		err := db.QueryRow(GENE_SQL, g).Scan(
+		err := db.QueryRow(FIND_GENE_SQL, g).Scan(
 			&gene.Id,
 			&gene.Ensembl,
 			&gene.GeneSymbol,
@@ -263,4 +275,109 @@ func (cache *DatasetCache) Metadata() (*DatasetMetadata, error) {
 		PublicId: cache.dataset.PublicId,
 		Metadata: ret,
 	}, nil
+}
+
+func (cache *DatasetCache) Genes() ([]*Gene, error) {
+
+	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
+
+	db, err := sql.Open("sqlite3", cache.dataset.Url)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer db.Close()
+
+	ret := make([]*Gene, 0, 40000)
+
+	rows, err := db.Query(GENES_SQL)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var gene Gene
+
+		err := rows.Scan(
+			&gene.Id,
+			&gene.Ensembl,
+			&gene.GeneSymbol)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, &gene)
+	}
+
+	return ret, nil
+}
+
+func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
+
+	whereSql, args := web.BoolQuery(query, func(placeholder string) string {
+		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
+	})
+
+	// _, andTags := web.ParseQuery(query)
+
+	// andClauses := make([]string, 0, len(andTags))
+
+	// // required so that we can use it with sqlite params
+	// args := make([]interface{}, 0, len(andTags))
+
+	// for _, group := range andTags {
+	// 	tagClauses := make([]string, 0, len(group))
+	// 	for _, tag := range group {
+	// 		args = append(args, "%"+tag+"%")
+	// 		placeholder := fmt.Sprintf("?%d", len(args))
+	// 		tagClauses = append(tagClauses, fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder))
+	// 	}
+	// 	andClauses = append(andClauses, "("+strings.Join(tagClauses, " AND ")+")")
+	// }
+
+	finalSQL := SEARCH_GENE_SQL + whereSql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
+
+	//log.Debug().Msgf("query %s", query)
+	//log.Debug().Msgf("sql %s", finalSQL)
+	//log.Debug().Msgf("args %v", args)
+
+	db, err := sql.Open("sqlite3", cache.dataset.Url)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer db.Close()
+
+	ret := make([]*Gene, 0, limit)
+
+	rows, err := db.Query(finalSQL, args...)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var gene Gene
+
+		err := rows.Scan(
+			&gene.Id,
+			&gene.Ensembl,
+			&gene.GeneSymbol)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, &gene)
+	}
+
+	return ret, nil
 }

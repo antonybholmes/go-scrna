@@ -45,3 +45,13 @@ func Gex(datasetId string,
 func Metadata(publicId string) (*scrna.DatasetMetadata, error) {
 	return instance.Metadata(publicId)
 }
+
+func Genes(publicId string) ([]*scrna.Gene, error) {
+	return instance.Genes(publicId)
+}
+
+func SearchGenes(publicId string, query string, limit uint16) ([]*scrna.Gene, error) {
+	return instance.SearchGenes(publicId, query, limit)
+}
+
+//

@@ -10,13 +10,6 @@ import (
 // approx size of dataset
 const DATASET_SIZE = 500
 
-const GENES_SQL = `SELECT 
-	genome.id, 
-	genome.gene_id, 
-	genome.gene_symbol 
-	FROM genes 
-	ORDER BY genome.gene_symbol`
-
 const SPECIES_SQL = `SELECT DISTINCT
 	species,
 	FROM datasets
@@ -403,6 +396,44 @@ func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) 
 	datasetCache := NewDatasetCache(dataset)
 
 	ret, err := datasetCache.Metadata()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func (cache *DatasetsCache) Genes(publicId string) ([]*Gene, error) {
+
+	dataset, err := cache.dataset(publicId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datasetCache := NewDatasetCache(dataset)
+
+	ret, err := datasetCache.Genes()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func (cache *DatasetsCache) SearchGenes(publicId string, query string, limit uint16) ([]*Gene, error) {
+
+	dataset, err := cache.dataset(publicId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datasetCache := NewDatasetCache(dataset)
+
+	ret, err := datasetCache.SearchGenes(query, limit)
 
 	if err != nil {
 		return nil, err
