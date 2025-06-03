@@ -37,7 +37,7 @@ func Datasets(species string, assembly string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, assembly)
 }
 
-func Gex(publicId string, geneIds []string) (*scrna.SearchResults, error) {
+func Gex(publicId string, geneIds []string) (*scrna.GexResults, error) {
 	return instance.Gex(publicId, geneIds)
 }
 

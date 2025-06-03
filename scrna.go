@@ -144,15 +144,15 @@ type ResultDataset struct {
 	PublicId string    `json:"publicId"`
 }
 
-type SearchResults struct {
+type GexResults struct {
 	// we use the simpler value type for platform in search
 	// results so that the value types are not repeated in
 	// each search. The useful info in a search is just
 	// the platform name and id
 
 	//Dataset *Dataset      `json:"dataset"`
-	Dataset  string           `json:"dataset"`
-	Features []*ResultFeature `json:"features"`
+	Dataset string           `json:"dataset"`
+	Genes   []*GexResultGene `json:"genes"`
 }
 
 type DatasetsCache struct {
@@ -366,7 +366,7 @@ func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 }
 
 func (cache *DatasetsCache) Gex(publicId string,
-	geneIds []string) (*SearchResults, error) {
+	geneIds []string) (*GexResults, error) {
 
 	dataset, err := cache.dataset(publicId)
 

@@ -45,16 +45,24 @@ const FIND_GENE_SQL = `SELECT
 const SEARCH_GENE_SQL = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 
 type Gene struct {
-	Ensembl    string `json:"ens"`
-	GeneSymbol string `json:"sym"`
+	Ensembl    string `json:"ensembl"`
+	GeneSymbol string `json:"geneSymbol"`
 	Id         int    `json:"-"`
 	File       string `json:"-"`
 }
 
-type GexGene struct {
-	Id   string      `json:"id"`
-	Sym  string      `json:"sym"`
-	Data [][]float32 `json:"data"`
+// Used only for reading data
+type GexFileDataGene struct {
+	Ensembl    string      `json:"id"`
+	GeneSymbol string      `json:"sym"`
+	Data       [][]float32 `json:"data"`
+}
+
+// More human readable for output
+type GexResultGene struct {
+	Ensembl    string      `json:"ensembl"`
+	GeneSymbol string      `json:"geneSymbol"`
+	Gex        [][]float32 `json:"gex"`
 }
 
 type Metadata struct {
@@ -73,13 +81,13 @@ type DatasetMetadata struct {
 }
 
 // Either a probe or gene
-type ResultFeature struct {
-	ProbeId string `json:"probeId,omitempty"`
-	Gene    *Gene  `json:"gene"`
-	//Platform     *ValueType       `json:"platform"`
-	//GexValue *GexValue    `json:"gexType"`
-	Gex [][]float32 `json:"gex"`
-}
+// type ResultFeature struct {
+// 	//ProbeId string `json:"probeId,omitempty"`
+// 	Gene *Gene `json:"gene"`
+// 	//Platform     *ValueType       `json:"platform"`
+// 	//GexValue *GexValue    `json:"gexType"`
+// 	Gex [][]float32 `json:"gex"`
+// }
 
 type DatasetCache struct {
 	dataset *Dataset
@@ -124,7 +132,7 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 }
 
 func (cache *DatasetCache) Gex(
-	geneIds []string) (*SearchResults, error) {
+	geneIds []string) (*GexResults, error) {
 
 	genes, err := cache.FindGenes(geneIds)
 
@@ -132,11 +140,12 @@ func (cache *DatasetCache) Gex(
 		return nil, err
 	}
 
-	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
-
 	db, err := sql.Open("sqlite3", cache.dataset.Url)
 
 	datasetUrl := filepath.Dir(cache.dataset.Url)
+
+	// where the gex data is located
+	gexUrl := filepath.Join(datasetUrl, "gex")
 
 	//cellCount := cache.dataset.Cells
 
@@ -146,15 +155,15 @@ func (cache *DatasetCache) Gex(
 
 	defer db.Close()
 
-	ret := SearchResults{
-		Dataset:  cache.dataset.PublicId,
-		Features: make([]*ResultFeature, 0, len(genes)),
+	ret := GexResults{
+		Dataset: cache.dataset.PublicId,
+		Genes:   make([]*GexResultGene, 0, len(genes)),
 	}
 
-	var gexCache = make(map[string][]GexGene)
+	var gexCache = make(map[string][]GexFileDataGene)
 
 	for _, gene := range genes {
-		gexFile := filepath.Join(datasetUrl, gene.File)
+		gexFile := filepath.Join(gexUrl, gene.File)
 
 		gexData, ok := gexCache[gexFile]
 
@@ -174,7 +183,7 @@ func (cache *DatasetCache) Gex(
 			defer gz.Close()
 
 			// Example 1: decode into a map (for JSON object)
-			var data []GexGene
+			var data []GexFileDataGene
 
 			if err := json.NewDecoder(gz).Decode(&data); err != nil {
 				return nil, err
@@ -189,14 +198,14 @@ func (cache *DatasetCache) Gex(
 		geneIndex := -1
 
 		for i, g := range gexData {
-			if g.Id == gene.Ensembl {
+			if g.Ensembl == gene.Ensembl {
 				geneIndex = i
 				break
 			}
 		}
 
 		if geneIndex == -1 {
-			return nil, err
+			return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
 		}
 
 		gexGeneData := gexData[geneIndex]
@@ -215,7 +224,7 @@ func (cache *DatasetCache) Gex(
 		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
 
 		//datasetResults.Samples = append(datasetResults.Samples, &sample)
-		ret.Features = append(ret.Features, &ResultFeature{Gene: gene, Gex: gexGeneData.Data})
+		ret.Genes = append(ret.Genes, &GexResultGene{Ensembl: gexGeneData.Ensembl, GeneSymbol: gexGeneData.GeneSymbol, Gex: gexGeneData.Data})
 
 	}
 
