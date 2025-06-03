@@ -16,8 +16,8 @@ CREATE TABLE datasets (
 CREATE INDEX datasets_public_id_idx ON datasets (public_id);
 CREATE INDEX datasets_name_idx ON datasets (name);
 CREATE INDEX datasets_institution_idx ON datasets (institution);
-CREATE INDEX datasets_species_idx ON datasets (species);
-CREATE INDEX datasets_assembly_idx ON datasets (assembly);
+CREATE INDEX datasets_species_idx ON datasets (species, assembly);
+ 
 
 
  

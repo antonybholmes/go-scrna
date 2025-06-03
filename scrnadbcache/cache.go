@@ -33,15 +33,15 @@ func Assemblies(species string) ([]string, error) {
 	return instance.Assemblies(species)
 }
 
-func Datasets(species string, technology string) ([]*scrna.Dataset, error) {
-	return instance.Datasets(species, technology)
+func Datasets(species string, assembly string) ([]*scrna.Dataset, error) {
+	return instance.Datasets(species, assembly)
 }
 
-func Gex(datasetIds []string,
-	geneIds []string) ([]*scrna.SearchResults, error) {
-	return instance.Gex(datasetIds, geneIds)
+func Gex(datasetId string,
+	geneIds []string) (*scrna.SearchResults, error) {
+	return instance.Gex(datasetId, geneIds)
 }
 
-func Metadata(datasetIds []string) ([]*scrna.DatasetMetadata, error) {
-	return instance.Metadata(datasetIds)
+func Metadata(publicId string) (*scrna.DatasetMetadata, error) {
+	return instance.Metadata(publicId)
 }

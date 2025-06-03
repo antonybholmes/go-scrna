@@ -3,6 +3,8 @@ package scrna
 import (
 	"database/sql"
 	"path/filepath"
+
+	"github.com/rs/zerolog/log"
 )
 
 // approx size of dataset
@@ -51,7 +53,7 @@ const DATASETS_SQL = `SELECT
 	datasets.institution,
 	datasets.species,
 	datasets.assembly,
-	dataset.cells,
+	datasets.cells,
 	datasets.url,
 	datasets.description
 	FROM datasets 
@@ -65,7 +67,7 @@ const DATASET_SQL = `SELECT
 	datasets.institution,
 	datasets.species,
 	datasets.assembly,
-	dataset.cells,
+	datasets.cells,
 	datasets.url,
 	datasets.description
 	FROM datasets 
@@ -290,9 +292,12 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 
 	datasets := make([]*Dataset, 0, 10)
 
+	log.Debug().Msgf("%s %s", species, assembly)
+
 	datasetRows, err := db.Query(DATASETS_SQL, species, assembly)
 
 	if err != nil {
+		log.Debug().Msgf("%s", err)
 		return nil, err
 	}
 
@@ -338,7 +343,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 	return datasets, nil
 }
 
-func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
+func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 	db, err := sql.Open("sqlite3", cache.path)
 
 	if err != nil {
@@ -349,7 +354,7 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 
 	var dataset Dataset
 
-	err = db.QueryRow(DATASET_SQL, datasetId).Scan(
+	err = db.QueryRow(DATASET_SQL, publicId).Scan(
 		&dataset.Id,
 		&dataset.PublicId,
 		&dataset.Name,
@@ -367,52 +372,40 @@ func (cache *DatasetsCache) dataset(datasetId string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) Gex(datasetIds []string,
-	geneIds []string) ([]*SearchResults, error) {
+func (cache *DatasetsCache) Gex(datasetId string,
+	geneIds []string) (*SearchResults, error) {
 
-	ret := make([]*SearchResults, 0, len(datasetIds))
+	dataset, err := cache.dataset(datasetId)
 
-	for _, datasetId := range datasetIds {
-		dataset, err := cache.dataset(datasetId)
+	if err != nil {
+		return nil, err
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	datasetCache := NewDatasetCache(dataset)
 
-		datasetCache := NewDatasetCache(dataset)
+	ret, err := datasetCache.Gex(geneIds)
 
-		res, err := datasetCache.Gex(geneIds)
-
-		if err != nil {
-			return nil, err
-		}
-
-		ret = append(ret, res)
+	if err != nil {
+		return nil, err
 	}
 
 	return ret, nil
 }
 
-func (cache *DatasetsCache) Metadata(datasetIds []string) ([]*DatasetMetadata, error) {
+func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) {
 
-	ret := make([]*DatasetMetadata, 0, len(datasetIds))
+	dataset, err := cache.dataset(publicId)
 
-	for _, datasetId := range datasetIds {
-		dataset, err := cache.dataset(datasetId)
+	if err != nil {
+		return nil, err
+	}
 
-		if err != nil {
-			return nil, err
-		}
+	datasetCache := NewDatasetCache(dataset)
 
-		datasetCache := NewDatasetCache(dataset)
+	ret, err := datasetCache.Metadata()
 
-		res, err := datasetCache.Metadata()
-
-		if err != nil {
-			return nil, err
-		}
-
-		ret = append(ret, res)
+	if err != nil {
+		return nil, err
 	}
 
 	return ret, nil
