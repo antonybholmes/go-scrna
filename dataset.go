@@ -328,7 +328,14 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
 
-	whereSql, args := web.BoolQuery(query, func(placeholder string) string {
+	whereSql, args := web.BoolQuery(query, func(placeholder string, exact bool) string {
+
+		// if exact {
+		// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
+		// } else {
+		// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
+		// }
+
 		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
 	})
 
