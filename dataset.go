@@ -45,7 +45,7 @@ const FIND_GENE_SQL = `SELECT
 const SEARCH_GENE_SQL = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 
 type Gene struct {
-	Ensembl    string `json:"ensembl"`
+	Ensembl    string `json:"geneId"`
 	GeneSymbol string `json:"geneSymbol"`
 	Id         int    `json:"-"`
 	File       string `json:"-"`
@@ -60,7 +60,7 @@ type GexFileDataGene struct {
 
 // More human readable for output
 type GexResultGene struct {
-	Ensembl    string      `json:"ensembl"`
+	Ensembl    string      `json:"geneId"`
 	GeneSymbol string      `json:"geneSymbol"`
 	Gex        [][]float32 `json:"gex"`
 }
