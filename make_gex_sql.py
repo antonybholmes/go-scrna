@@ -17,7 +17,8 @@ parser.add_argument("-i", "--institution", help="institution")
 parser.add_argument("-s", "--species", help="species", default="Human")
 parser.add_argument("-a", "--assembly", help="assembly", default="GRCh38")
 parser.add_argument("-d", "--dir", help="dir")
-parser.add_argument("-c", "--clusters", help="clusters")
+parser.add_argument("-c", "--cells", help="cells")
+parser.add_argument("-l", "--clusters", help="clusters")
 
 args = parser.parse_args()
 dir = args.dir
@@ -29,6 +30,7 @@ gex_dir = os.path.join(dir, "gex")
 
 public_id = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 
+df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
 
 
@@ -41,9 +43,29 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     print("BEGIN TRANSACTION;", file=sqlf)
 
+    for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
+        print(
+            f"INSERT INTO samples (name) VALUES ('{sample}');",
+            file=sqlf,
+        ),
+
+    print("COMMIT;", file=sqlf)
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
     for i, row in df_clusters.iterrows():
         print(
-            f"INSERT INTO cells (barcode, umap_x, umap_y, cluster, sc_class, sample) VALUES ('{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]}, {row["Cluster"]},'{row["Phenotype"]}','{row["Sample"]}');",
+            f"INSERT INTO clusters (cluster_id, sc_group, sc_class, color) VALUES ({row["Cluster"]}, '{row["Group"]}', '{row["scClass"]}', '{row["Color"]}');",
+            file=sqlf,
+        ),
+
+    print("COMMIT;", file=sqlf)
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
+    for i, row in df_cells.iterrows():
+        print(
+            f"INSERT INTO cells (barcode, umap_x, umap_y, cluster_id, sample) VALUES ('{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]}, {row["Cluster"]},'{row["Sample"]}');",
             file=sqlf,
         ),
 

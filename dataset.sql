@@ -10,19 +10,31 @@ CREATE TABLE dataset (
 	dir TEXT NOT NULL
 );
 
+
+CREATE TABLE samples (
+	id INTEGER PRIMARY KEY ASC,
+	name TEXT NOT NULL UNIQUE
+);
+
+CREATE TABLE clusters (
+	id INTEGER PRIMARY KEY ASC,
+	cluster_id INTEGER NOT NULL UNIQUE, 
+	sc_group TEXT NOT NULL, 
+	sc_class TEXT NOT NULL, 
+	color TEXT NOT NULL
+);
+
 CREATE TABLE cells (
 	id INTEGER PRIMARY KEY ASC,
 	barcode	TEXT NOT NULL, 
 	umap_x REAL NOT NULL, 
 	umap_y REAL NOT NULL, 
-	cluster INTEGER NOT NULL, 
-	sc_class TEXT NOT NULL, 
+	cluster_id INTEGER NOT NULL, 
 	sample TEXT NOT NULL
 );
 
 -- CREATE INDEX cells_barcode_idx ON cells (barcode);
-CREATE INDEX cells_cluster_idx ON cells (cluster);
-CREATE INDEX cells_sc_class_idx ON cells (sc_class);
+CREATE INDEX cells_cluster_id_idx ON cells (cluster_id);
 CREATE INDEX cells_sample_idx ON cells (sample);
 
 

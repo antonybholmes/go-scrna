@@ -41,8 +41,12 @@ func Gex(publicId string, geneIds []string) (*scrna.GexResults, error) {
 	return instance.Gex(publicId, geneIds)
 }
 
-func Metadata(publicId string) (*scrna.DatasetMetadata, error) {
-	return instance.Metadata(publicId)
+func Clusters(publicId string) (*scrna.DatasetClusters, error) {
+	return instance.Clusters(publicId)
+}
+
+func Cells(publicId string) (*scrna.DatasetCells, error) {
+	return instance.Cells(publicId)
 }
 
 func Genes(publicId string) ([]*scrna.Gene, error) {

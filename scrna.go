@@ -101,18 +101,6 @@ type Sample struct {
 	Metadata []NameValueType `json:"metadata"`
 }
 
-type Dataset struct {
-	PublicId    string `json:"publicId"`
-	Name        string `json:"name"`
-	Species     string `json:"species"`
-	Assembly    string `json:"assembly"`
-	Url         string `json:"-"`
-	Institution string `json:"institution"`
-	Cells       uint   `json:"cells"`
-	Id          int    `json:"-"`
-	Description string `json:"description"`
-}
-
 // type RNASeqGex struct {
 // 	Dataset int     `json:"dataset"`
 // 	Sample  int     `json:"sample"`
@@ -385,7 +373,7 @@ func (cache *DatasetsCache) Gex(publicId string,
 	return ret, nil
 }
 
-func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) {
+func (cache *DatasetsCache) Clusters(publicId string) (*DatasetClusters, error) {
 
 	dataset, err := cache.dataset(publicId)
 
@@ -395,7 +383,26 @@ func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) 
 
 	datasetCache := NewDatasetCache(dataset)
 
-	ret, err := datasetCache.Metadata()
+	ret, err := datasetCache.Clusters()
+
+	if err != nil {
+		return nil, err
+	}
+
+	return ret, nil
+}
+
+func (cache *DatasetsCache) Cells(publicId string) (*DatasetCells, error) {
+
+	dataset, err := cache.dataset(publicId)
+
+	if err != nil {
+		return nil, err
+	}
+
+	datasetCache := NewDatasetCache(dataset)
+
+	ret, err := datasetCache.Cells()
 
 	if err != nil {
 		return nil, err

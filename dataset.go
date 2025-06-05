@@ -16,13 +16,20 @@ import (
 // groupings such as N/GC/M which are not alphabetical
 const CELL_COUNT_SQL = `SELECT COUNT(cells.id) FROM cells`
 
-const METADATA_SQL = `SELECT 
+const CLUSTERS_SQL = `SELECT 
+	clusters.id,
+	clusters.cluster_id,
+	clusters.sc_group,
+	clusters.sc_class,
+	clusters.color
+	FROM clusters`
+
+const CELLS_SQL = `SELECT 
 	cells.id,
 	cells.barcode,
 	cells.umap_x,
 	cells.umap_y,
-	cells.cluster,
-	cells.sc_class,
+	cells.cluster_id,
 	cells.sample
 	FROM cells`
 
@@ -43,6 +50,18 @@ const FIND_GENE_SQL = `SELECT
 	LIMIT 1`
 
 const SEARCH_GENE_SQL = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
+
+type Dataset struct {
+	PublicId    string `json:"publicId"`
+	Name        string `json:"name"`
+	Species     string `json:"species"`
+	Assembly    string `json:"assembly"`
+	Url         string `json:"-"`
+	Institution string `json:"institution"`
+	Cells       uint   `json:"cells"`
+	Id          int    `json:"-"`
+	Description string `json:"description"`
+}
 
 type Gene struct {
 	Ensembl    string `json:"geneId"`
@@ -65,19 +84,32 @@ type GexResultGene struct {
 	Gex        [][]float32 `json:"gex"`
 }
 
-type Metadata struct {
+type Cluster struct {
+	Id        string `json:"-"`
+	ClusterId uint   `json:"clusterId"`
+	Group     string `json:"group"`
+	ScClass   string `json:"scClass"`
+	Color     string `json:"color"`
+}
+
+type DatasetClusters struct {
+	PublicId string     `json:"publicId"`
+	Clusters []*Cluster `json:"clusters"`
+}
+
+type SingleCell struct {
 	Id      string  `json:"-"`
 	Barcode string  `json:"barcode"`
 	UmapX   float32 `json:"umapX"`
 	UmapY   float32 `json:"umapY"`
-	Cluster uint    `json:"cluster"`
-	ScClass string  `json:"scClass"`
-	Sample  string  `json:"sample"`
+	Cluster uint    `json:"clusterId"`
+	//ScClass string  `json:"scClass"`
+	Sample string `json:"sample"`
 }
 
-type DatasetMetadata struct {
-	PublicId string      `json:"publicId"`
-	Metadata []*Metadata `json:"metadata"`
+type DatasetCells struct {
+	PublicId string        `json:"publicId"`
+	Cells    []*SingleCell `json:"cells"`
 }
 
 // Either a probe or gene
@@ -231,11 +263,56 @@ func (cache *DatasetCache) Gex(
 	return &ret, nil
 }
 
-func (cache *DatasetCache) Metadata() (*DatasetMetadata, error) {
+func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open("sqlite3", cache.dataset.Url)
+	db, err := sql.Open("sqlite3", dataset.dataset.Url)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer db.Close()
+
+	ret := make([]*Cluster, 0, 30)
+
+	rows, err := db.Query(CLUSTERS_SQL)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var cluster Cluster
+
+		err := rows.Scan(
+			&cluster.Id,
+			&cluster.ClusterId,
+			&cluster.Group,
+			&cluster.ScClass,
+			&cluster.Color)
+
+		if err != nil {
+			return nil, err
+		}
+
+		ret = append(ret, &cluster)
+	}
+
+	return &DatasetClusters{
+		PublicId: dataset.dataset.PublicId,
+		Clusters: ret,
+	}, nil
+}
+
+func (dataset *DatasetCache) Cells() (*DatasetCells, error) {
+
+	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
+
+	db, err := sql.Open("sqlite3", dataset.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -251,9 +328,9 @@ func (cache *DatasetCache) Metadata() (*DatasetMetadata, error) {
 		return nil, err
 	}
 
-	ret := make([]*Metadata, 0, cellCount)
+	ret := make([]*SingleCell, 0, cellCount)
 
-	rows, err := db.Query(METADATA_SQL)
+	rows, err := db.Query(CELLS_SQL)
 
 	if err != nil {
 		return nil, err
@@ -262,27 +339,26 @@ func (cache *DatasetCache) Metadata() (*DatasetMetadata, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var metadata Metadata
+		var cell SingleCell
 
 		err := rows.Scan(
-			&metadata.Id,
-			&metadata.Barcode,
-			&metadata.UmapX,
-			&metadata.UmapY,
-			&metadata.Cluster,
-			&metadata.ScClass,
-			&metadata.Sample)
+			&cell.Id,
+			&cell.Barcode,
+			&cell.UmapX,
+			&cell.UmapY,
+			&cell.Cluster,
+			&cell.Sample)
 
 		if err != nil {
 			return nil, err
 		}
 
-		ret = append(ret, &metadata)
+		ret = append(ret, &cell)
 	}
 
-	return &DatasetMetadata{
-		PublicId: cache.dataset.PublicId,
-		Metadata: ret,
+	return &DatasetCells{
+		PublicId: dataset.dataset.PublicId,
+		Cells:    ret,
 	}, nil
 }
 
