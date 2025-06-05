@@ -373,7 +373,26 @@ func (cache *DatasetsCache) Gex(publicId string,
 	return ret, nil
 }
 
-func (cache *DatasetsCache) Clusters(publicId string) (*DatasetClusters, error) {
+// func (cache *DatasetsCache) Metadata(publicId string) (*DatasetClusters, error) {
+
+// 	dataset, err := cache.dataset(publicId)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	datasetCache := NewDatasetCache(dataset)
+
+// 	ret, err := datasetCache.Metadata()
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return ret, nil
+// }
+
+func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) {
 
 	dataset, err := cache.dataset(publicId)
 
@@ -383,26 +402,7 @@ func (cache *DatasetsCache) Clusters(publicId string) (*DatasetClusters, error) 
 
 	datasetCache := NewDatasetCache(dataset)
 
-	ret, err := datasetCache.Clusters()
-
-	if err != nil {
-		return nil, err
-	}
-
-	return ret, nil
-}
-
-func (cache *DatasetsCache) Cells(publicId string) (*DatasetCells, error) {
-
-	dataset, err := cache.dataset(publicId)
-
-	if err != nil {
-		return nil, err
-	}
-
-	datasetCache := NewDatasetCache(dataset)
-
-	ret, err := datasetCache.Cells()
+	ret, err := datasetCache.Metadata()
 
 	if err != nil {
 		return nil, err

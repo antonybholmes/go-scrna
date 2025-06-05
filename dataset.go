@@ -107,8 +107,9 @@ type SingleCell struct {
 	Sample string `json:"sample"`
 }
 
-type DatasetCells struct {
+type DatasetMetadata struct {
 	PublicId string        `json:"publicId"`
+	Clusters []*Cluster    `json:"clusters"`
 	Cells    []*SingleCell `json:"cells"`
 }
 
@@ -263,7 +264,52 @@ func (cache *DatasetCache) Gex(
 	return &ret, nil
 }
 
-func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
+// func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
+
+// 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
+
+// 	db, err := sql.Open("sqlite3", dataset.dataset.Url)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	defer db.Close()
+
+// 	ret := make([]*Cluster, 0, 30)
+
+// 	rows, err := db.Query(CLUSTERS_SQL)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	defer rows.Close()
+
+// 	for rows.Next() {
+// 		var cluster Cluster
+
+// 		err := rows.Scan(
+// 			&cluster.Id,
+// 			&cluster.ClusterId,
+// 			&cluster.Group,
+// 			&cluster.ScClass,
+// 			&cluster.Color)
+
+// 		if err != nil {
+// 			return nil, err
+// 		}
+
+// 		ret = append(ret, &cluster)
+// 	}
+
+// 	return &DatasetClusters{
+// 		PublicId: dataset.dataset.PublicId,
+// 		Clusters: ret,
+// 	}, nil
+// }
+
+func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
@@ -275,7 +321,7 @@ func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
 
 	defer db.Close()
 
-	ret := make([]*Cluster, 0, 30)
+	clusters := make([]*Cluster, 0, 30)
 
 	rows, err := db.Query(CLUSTERS_SQL)
 
@@ -299,26 +345,8 @@ func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
 			return nil, err
 		}
 
-		ret = append(ret, &cluster)
+		clusters = append(clusters, &cluster)
 	}
-
-	return &DatasetClusters{
-		PublicId: dataset.dataset.PublicId,
-		Clusters: ret,
-	}, nil
-}
-
-func (dataset *DatasetCache) Cells() (*DatasetCells, error) {
-
-	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
-
-	db, err := sql.Open("sqlite3", dataset.dataset.Url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
 
 	var cellCount uint
 
@@ -328,9 +356,9 @@ func (dataset *DatasetCache) Cells() (*DatasetCells, error) {
 		return nil, err
 	}
 
-	ret := make([]*SingleCell, 0, cellCount)
+	cells := make([]*SingleCell, 0, cellCount)
 
-	rows, err := db.Query(CELLS_SQL)
+	rows, err = db.Query(CELLS_SQL)
 
 	if err != nil {
 		return nil, err
@@ -353,12 +381,13 @@ func (dataset *DatasetCache) Cells() (*DatasetCells, error) {
 			return nil, err
 		}
 
-		ret = append(ret, &cell)
+		cells = append(cells, &cell)
 	}
 
-	return &DatasetCells{
+	return &DatasetMetadata{
 		PublicId: dataset.dataset.PublicId,
-		Cells:    ret,
+		Clusters: clusters,
+		Cells:    cells,
 	}, nil
 }
 
