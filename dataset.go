@@ -21,6 +21,7 @@ const CLUSTERS_SQL = `SELECT
 	clusters.cluster_id,
 	clusters.sc_group,
 	clusters.sc_class,
+	clusters.cell_count,
 	clusters.color
 	FROM clusters`
 
@@ -89,6 +90,7 @@ type Cluster struct {
 	ClusterId uint   `json:"clusterId"`
 	Group     string `json:"group"`
 	ScClass   string `json:"scClass"`
+	CellCount uint   `json:"cells"`
 	Color     string `json:"color"`
 }
 
@@ -339,6 +341,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 			&cluster.ClusterId,
 			&cluster.Group,
 			&cluster.ScClass,
+			&cluster.CellCount,
 			&cluster.Color)
 
 		if err != nil {

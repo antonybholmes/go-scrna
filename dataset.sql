@@ -20,7 +20,8 @@ CREATE TABLE clusters (
 	id INTEGER PRIMARY KEY ASC,
 	cluster_id INTEGER NOT NULL UNIQUE, 
 	sc_group TEXT NOT NULL, 
-	sc_class TEXT NOT NULL, 
+	sc_class TEXT NOT NULL,
+	cell_count INTEGER NOT NULL,
 	color TEXT NOT NULL
 );
 

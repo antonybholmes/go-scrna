@@ -33,6 +33,18 @@ public_id = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
 
+# use cells to count cells in each cluster
+counts = []
+
+for c in df_clusters["Cluster"].values:
+    count = len(df_cells[df_cells["Cluster"] == c])
+    counts.append(count)
+
+df_clusters["Cells"] = counts
+
+
+
+
 
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
@@ -55,7 +67,7 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     for i, row in df_clusters.iterrows():
         print(
-            f"INSERT INTO clusters (cluster_id, sc_group, sc_class, color) VALUES ({row["Cluster"]}, '{row["Group"]}', '{row["scClass"]}', '{row["Color"]}');",
+            f"INSERT INTO clusters (cluster_id, sc_group, sc_class, cell_count, color) VALUES ({row["Cluster"]}, '{row["Group"]}', '{row["scClass"]}', {row["Cells"]}, '{row["Color"]}');",
             file=sqlf,
         ),
 
