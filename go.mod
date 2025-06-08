@@ -8,7 +8,7 @@ require github.com/rs/zerolog v1.34.0
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/antonybholmes/go-sys v0.0.0-20250530200903-de9311aa2093 // indirect
+	github.com/antonybholmes/go-sys v0.0.0-20250606171605-31639110750b // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
@@ -48,7 +48,7 @@ require (
 )
 
 require (
-	github.com/antonybholmes/go-web v0.0.0-20250606160256-46c704145081
+	github.com/antonybholmes/go-web v0.0.0-20250606171556-2e45aaa13f77
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	golang.org/x/sys v0.33.0 // indirect
