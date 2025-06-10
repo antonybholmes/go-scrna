@@ -447,7 +447,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 	// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
 	// })
 
-	whereSql, args := sys.SqlBoolQuery(query, func(placeholder string, exact bool) string {
+	where, err := sys.SqlBoolQuery(query, func(placeholder string, matchType sys.MatchType) string {
 
 		// if exact {
 		// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
@@ -457,6 +457,10 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 
 		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
 	})
+
+	if err != nil {
+		return nil, err
+	}
 
 	// _, andTags := web.ParseQuery(query)
 
@@ -475,7 +479,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 	// 	andClauses = append(andClauses, "("+strings.Join(tagClauses, " AND ")+")")
 	// }
 
-	finalSQL := SEARCH_GENE_SQL + whereSql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
+	finalSQL := SEARCH_GENE_SQL + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
 
 	//log.Debug().Msgf("query %s", query)
 	//log.Debug().Msgf("sql %s", finalSQL)
@@ -491,7 +495,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 
 	ret := make([]*Gene, 0, limit)
 
-	rows, err := db.Query(finalSQL, args...)
+	rows, err := db.Query(finalSQL, where.Args...)
 
 	if err != nil {
 		return nil, err
