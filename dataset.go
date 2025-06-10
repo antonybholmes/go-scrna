@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/antonybholmes/go-web"
+	"github.com/antonybholmes/go-sys"
 	"github.com/rs/zerolog/log"
 )
 
@@ -436,7 +436,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
 
-	whereSql, args := web.BoolQuery(query, func(placeholder string, exact bool) string {
+	whereSql, args := sys.BoolQuery(query, func(placeholder string, exact bool) string {
 
 		// if exact {
 		// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
