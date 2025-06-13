@@ -447,7 +447,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 	// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
 	// })
 
-	where, err := sys.SqlBoolQuery(query, func(placeholder string, matchType sys.MatchType) string {
+	where, err := sys.SqlBoolQuery(query, func(placeholder uint, matchType sys.MatchType) string {
 
 		// if exact {
 		// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
@@ -455,7 +455,9 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 		// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
 		// }
 
-		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
+		ph := fmt.Sprintf("?%d", placeholder)
+
+		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", ph, ph)
 	})
 
 	if err != nil {
