@@ -4,11 +4,13 @@ go 1.24
 
 replace github.com/antonybholmes/go-web => ../go-web
 
-require github.com/rs/zerolog v1.34.0
+require (
+	github.com/antonybholmes/go-sys v0.0.0-20250606171605-31639110750b
+	github.com/rs/zerolog v1.34.0
+)
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
-	github.com/antonybholmes/go-sys v0.0.0-20250606171605-31639110750b // indirect
 	github.com/bytedance/sonic v1.13.3 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
