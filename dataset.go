@@ -59,16 +59,16 @@ type Dataset struct {
 	Assembly    string `json:"assembly"`
 	Url         string `json:"-"`
 	Institution string `json:"institution"`
+	Description string `json:"description"`
 	Cells       uint   `json:"cells"`
 	Id          int    `json:"-"`
-	Description string `json:"description"`
 }
 
 type Gene struct {
 	Ensembl    string `json:"geneId"`
 	GeneSymbol string `json:"geneSymbol"`
-	Id         int    `json:"-"`
 	File       string `json:"-"`
+	Id         int    `json:"-"`
 }
 
 // Used only for reading data
@@ -87,11 +87,11 @@ type GexResultGene struct {
 
 type Cluster struct {
 	Id        string `json:"-"`
-	ClusterId uint   `json:"clusterId"`
 	Group     string `json:"group"`
 	ScClass   string `json:"scClass"`
-	CellCount uint   `json:"cells"`
 	Color     string `json:"color"`
+	ClusterId uint   `json:"clusterId"`
+	CellCount uint   `json:"cells"`
 }
 
 type DatasetClusters struct {
@@ -102,11 +102,10 @@ type DatasetClusters struct {
 type SingleCell struct {
 	Id      string  `json:"-"`
 	Barcode string  `json:"barcode"`
+	Sample  string  `json:"sample"`
+	Cluster uint    `json:"clusterId"`
 	UmapX   float32 `json:"umapX"`
 	UmapY   float32 `json:"umapY"`
-	Cluster uint    `json:"clusterId"`
-	//ScClass string  `json:"scClass"`
-	Sample string `json:"sample"`
 }
 
 type DatasetMetadata struct {

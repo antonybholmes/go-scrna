@@ -97,8 +97,8 @@ type Sample struct {
 	PublicId string          `json:"publicId"`
 	Name     string          `json:"name"`
 	AltNames []string        `json:"altNames"`
-	Id       int             `json:"-"`
 	Metadata []NameValueType `json:"metadata"`
+	Id       int             `json:"-"`
 }
 
 // type RNASeqGex struct {
@@ -128,8 +128,8 @@ type ResultSample struct {
 }
 
 type ResultDataset struct {
-	Values   []float32 `json:"values"`
 	PublicId string    `json:"publicId"`
+	Values   []float32 `json:"values"`
 }
 
 type GexResults struct {
