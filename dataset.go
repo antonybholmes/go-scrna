@@ -99,13 +99,19 @@ type DatasetClusters struct {
 	Clusters []*Cluster `json:"clusters"`
 }
 
+type Pos struct {
+	X float32 `json:"x"`
+	Y float32 `json:"y"`
+}
+
 type SingleCell struct {
-	Id      string  `json:"-"`
-	Barcode string  `json:"barcode"`
-	Sample  string  `json:"sample"`
-	Cluster uint    `json:"clusterId"`
-	UmapX   float32 `json:"umapX"`
-	UmapY   float32 `json:"umapY"`
+	Id      string `json:"-"`
+	Barcode string `json:"barcode"`
+	Sample  string `json:"sample"`
+	Cluster uint   `json:"clusterId"`
+	//UmapX   float32 `json:"umapX"`
+	//UmapY   float32 `json:"umapY"`
+	Pos Pos `json:"pos"`
 }
 
 type DatasetMetadata struct {
@@ -374,8 +380,8 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 		err := rows.Scan(
 			&cell.Id,
 			&cell.Barcode,
-			&cell.UmapX,
-			&cell.UmapY,
+			&cell.Pos.X,
+			&cell.Pos.Y,
 			&cell.Cluster,
 			&cell.Sample)
 
