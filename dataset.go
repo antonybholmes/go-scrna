@@ -411,7 +411,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 	defer db.Close()
 
-	ret := make([]*Gene, 0, 40000)
+	ret := make([]*Gene, 0, 50000)
 
 	rows, err := db.Query(GENES_SQL)
 
