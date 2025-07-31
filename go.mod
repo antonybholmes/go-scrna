@@ -7,7 +7,7 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20250616145834-7aeb8359e265
+	github.com/antonybholmes/go-sys v0.0.0-20250711230729-977770033804
 	github.com/rs/zerolog v1.34.0
 )
 
