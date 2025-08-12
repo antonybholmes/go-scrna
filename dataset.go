@@ -1,11 +1,8 @@
 package scrna
 
 import (
-	"compress/gzip"
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/antonybholmes/go-sys"
@@ -45,7 +42,8 @@ const FIND_GENE_SQL = `SELECT
 	gex.id, 
 	gex.ensembl_id,
 	gex.gene_symbol,
-	gex.file
+	gex.file,
+	gex.offset
 	FROM gex
 	WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
 	LIMIT 1`
@@ -65,25 +63,26 @@ type Dataset struct {
 }
 
 type Gene struct {
-	Ensembl    string `json:"geneId"`
-	GeneSymbol string `json:"geneSymbol"`
+	Ensembl    string `json:"id"`
+	GeneSymbol string `json:"sym"`
 	File       string `json:"-"`
 	Id         int    `json:"-"`
+	Offset     int64  `json:"-"`
 }
 
 // Used only for reading data
-type GexFileDataGene struct {
-	Ensembl    string      `json:"id"`
-	GeneSymbol string      `json:"sym"`
-	Data       [][]float32 `json:"data"`
+type GexDataGene struct {
+	Ensembl    string      `json:"id" msgpack:"id"`
+	GeneSymbol string      `json:"sym" msgpack:"sym"`
+	Data       [][]float64 `json:"gex" msgpack:"gex"`
 }
 
 // More human readable for output
-type GexResultGene struct {
-	Ensembl    string      `json:"geneId"`
-	GeneSymbol string      `json:"geneSymbol"`
-	Gex        [][]float32 `json:"gex"`
-}
+// type GexResultGene struct {
+// 	Ensembl    string      `json:"geneId"`
+// 	GeneSymbol string      `json:"geneSymbol"`
+// 	Gex        [][]float64 `json:"gex"`
+// }
 
 type Cluster struct {
 	Id        string `json:"-"`
@@ -155,7 +154,8 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 			&gene.Id,
 			&gene.Ensembl,
 			&gene.GeneSymbol,
-			&gene.File)
+			&gene.File,
+			&gene.Offset)
 
 		if err == nil {
 			// add as many genes as possible
@@ -197,10 +197,10 @@ func (cache *DatasetCache) Gex(
 
 	ret := GexResults{
 		Dataset: cache.dataset.PublicId,
-		Genes:   make([]*GexResultGene, 0, len(genes)),
+		Genes:   make([]*GexDataGene, 0, len(genes)),
 	}
 
-	var gexCache = make(map[string][]GexFileDataGene)
+	var gexCache = make(map[string]*GexDataGene)
 
 	for _, gene := range genes {
 		gexFile := filepath.Join(gexUrl, gene.File)
@@ -209,25 +209,31 @@ func (cache *DatasetCache) Gex(
 
 		if !ok {
 
-			f, err := os.Open(gexFile)
+			// f, err := os.Open(gexFile)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// defer f.Close()
+
+			data, err := SeekRecordFromDat(gexFile, gene.Offset)
+
 			if err != nil {
 				return nil, err
 			}
-			defer f.Close()
 
 			// Create gzip reader
-			gz, err := gzip.NewReader(f)
-			if err != nil {
-				return nil, err
-			}
-			defer gz.Close()
+			// gz, err := gzip.NewReader(f)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// defer gz.Close()
 
-			// Example 1: decode into a map (for JSON object)
-			var data []GexFileDataGene
+			// // Example 1: decode into a map (for JSON object)
+			// var data []GexFileDataGene
 
-			if err := json.NewDecoder(gz).Decode(&data); err != nil {
-				return nil, err
-			}
+			// if err := json.NewDecoder(gz).Decode(&data); err != nil {
+			// 	return nil, err
+			// }
 
 			gexCache[gexFile] = data
 			gexData = data
@@ -235,20 +241,20 @@ func (cache *DatasetCache) Gex(
 
 		// find the index of our gene
 
-		geneIndex := -1
+		// geneIndex := -1
 
-		for i, g := range gexData {
-			if g.Ensembl == gene.Ensembl {
-				geneIndex = i
-				break
-			}
-		}
+		// for i, g := range gexData {
+		// 	if g.Ensembl == gene.Ensembl {
+		// 		geneIndex = i
+		// 		break
+		// 	}
+		// }
 
-		if geneIndex == -1 {
-			return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
-		}
+		// if geneIndex == -1 {
+		// 	return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
+		// }
 
-		gexGeneData := gexData[geneIndex]
+		//gexGeneData := gexData[geneIndex]
 
 		// values := make([][]float32, 0, cellCount)
 
@@ -264,7 +270,7 @@ func (cache *DatasetCache) Gex(
 		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
 
 		//datasetResults.Samples = append(datasetResults.Samples, &sample)
-		ret.Genes = append(ret.Genes, &GexResultGene{Ensembl: gexGeneData.Ensembl, GeneSymbol: gexGeneData.GeneSymbol, Gex: gexGeneData.Data})
+		ret.Genes = append(ret.Genes, gexData)
 
 	}
 

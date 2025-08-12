@@ -139,8 +139,8 @@ type GexResults struct {
 	// the platform name and id
 
 	//Dataset *Dataset      `json:"dataset"`
-	Dataset string           `json:"dataset"`
-	Genes   []*GexResultGene `json:"genes"`
+	Dataset string         `json:"dataset"`
+	Genes   []*GexDataGene `json:"genes"`
 }
 
 type DatasetsCache struct {

@@ -6,6 +6,7 @@ from scipy import sparse
 import numpy as np
 import sys
 import msgpack
+import struct
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
@@ -16,6 +17,7 @@ args = parser.parse_args()
 file = args.file
 dir = args.dir
 
+BLOCK_SIZE = 256
 
 f = gzip.open(file, "r")
 # skip header
@@ -25,6 +27,10 @@ c = 0
 block = 1
 
 genes = []
+
+
+offsets = []
+buffer = b""
 
 for line in f:
     tokens = line.decode().strip().split("\t")
@@ -43,9 +49,9 @@ for line in f:
     # reject if not in 10 of cells
     idx = np.where(data > 0)[0]
 
-    if len(idx) < 20:
-        # print("reject, not enough cells", g)
-        continue
+    # if len(idx) < 20:
+    # print("reject, not enough cells", g)
+    #    continue
 
     sparse_matrix = sparse.coo_matrix(data)
     # row unnecessary as we are looking at individual rows
@@ -54,29 +60,41 @@ for line in f:
         for r, c, v in zip(sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)
     ]
 
-    out = {"id": ensembl, "sym": symbol, "data": sparse_data}
+    out = {"id": ensembl, "sym": symbol, "gex": sparse_data}
 
     genes.append(out)
 
-    # bunch genes into blocks of 32
-    if len(genes) == 32:
-        fout = path.join(dir, f"gex_{block}.json.gz")  # f"{ensembl}_{symbol}.json.gz"
-        with gzip.open(fout, "wt", encoding="utf-8") as f:
-            json.dump(genes, f)  # , indent=2)
+    encoded = msgpack.packb(out)
+    offsets.append(len(buffer))
+    buffer += encoded
 
-        # fout = path.join(dir, f"gex_{block}.msgpack")
-        # with open(fout, "wb") as f:
-        #     msgpack.pack(genes, f)
+    # bunch genes into blocks of 32
+    if len(genes) == BLOCK_SIZE:
+        # fout = path.join(dir, f"gex_{block}.json.gz")
+        # with gzip.open(fout, "wt", encoding="utf-8") as f:
+        #     json.dump(genes, f)
+
+        fout = path.join(dir, f"gex_{block}.dat")
+        with open(fout, "wb") as f:
+            f.write(struct.pack("<B", 42))  # magic
+            f.write(struct.pack("<I", len(offsets)))  # number of entries
+            for offset in offsets:
+                f.write(struct.pack("<I", offset))  # 4 bytes each
+            f.write(buffer)
 
         genes = []
+
+        buffer = b""
+        offsets = []
+
         block += 1
+        # break
 
     c += 1
 
     if c % 1000 == 0:
         print(c, file=sys.stderr)
 
-    # break
 
 f.close()
 
@@ -85,6 +103,10 @@ if len(genes) > 0:
     with gzip.open(fout, "wt", encoding="utf-8") as f:
         json.dump(genes, f)  # , indent=2)
 
-    # fout = path.join(dir, f"gex_{block}.msgpack")
-    # with open(fout, "wb") as f:
-    #     msgpack.pack(genes, f)
+    fout = path.join(dir, f"gex_{block}.dat")
+    with open(fout, "wb") as f:
+        f.write(struct.pack("<B", 42))  # magic
+        f.write(struct.pack("<I", len(offsets)))  # number of entries
+        for offset in offsets:
+            f.write(struct.pack("<I", offset))  # 4 bytes each
+        f.write(buffer)

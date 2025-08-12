@@ -3,13 +3,17 @@ import gzip
 import json
 import os
 import re
+import struct
 import sys
+import msgpack
 import pandas as pd
 import numpy as np
 from nanoid import generate
 
 import argparse
 
+DAT_INDEX_SIZE = 256 * 4
+DAT_OFFSET = 1 + 4 + DAT_INDEX_SIZE
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
@@ -41,9 +45,6 @@ for c in df_clusters["Cluster"].values:
     counts.append(count)
 
 df_clusters["Cells"] = counts
-
-
-
 
 
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
@@ -86,17 +87,50 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
     print("BEGIN TRANSACTION;", file=sqlf)
 
     for f in sorted(os.listdir(gex_dir)):
-        if f.endswith(".json.gz"):
-            # print(f)
-            with gzip.open(os.path.join(gex_dir, f), "r") as fin:
-                data = json.load(fin)
+        # if f.endswith(".json.gz"):
+        #     # print(f)
+        #     with gzip.open(os.path.join(gex_dir, f), "r") as fin:
+        #         data = json.load(fin)
 
-                for d in data:
-                    id = d["id"]
-                    sym = d["sym"]
+        #         for d in data:
+        #             id = d["id"]
+        #             sym = d["sym"]
+
+        #             print(
+        #                 f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset) VALUES ('{id}', '{sym}', '{f}');",
+        #                 file=sqlf,
+        #             )
+
+        if f.endswith(".dat"):
+            # print(f)
+            with open(os.path.join(gex_dir, f), "rb") as fin:
+
+                magic = fin.read(1)
+                print("Magic:", magic[0])
+
+                # Step 1: Read the offset table entry
+
+                num_entries = struct.unpack("<I", fin.read(4))[0]
+                dat_offset = 1 + 4 + num_entries * 4
+                data = fin.read(num_entries * 4)
+                # Unpack as 256 unsigned ints (little-endian)
+                offsets = struct.unpack(f"<{num_entries}I", data)
+
+                print("Offsets:", offsets)
+
+                for i, offset in enumerate(offsets):
+                    seek = dat_offset + offset
+                    fin.seek(seek)
+
+                    # Step 3: Decode one MessagePack object
+                    unpacker = msgpack.Unpacker(fin, raw=False)
+                    record = next(unpacker)
+
+                    id = record["id"]
+                    sym = record["sym"]
 
                     print(
-                        f"INSERT INTO gex (ensembl_id, gene_symbol, file) VALUES ('{id}', '{sym}', '{f}');",
+                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset) VALUES ('{id}', '{sym}', '{f}', {seek});",
                         file=sqlf,
                     )
 
