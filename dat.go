@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/rs/zerolog/log"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
@@ -43,26 +42,28 @@ func ReadRecordFromDat(file string, index int) (interface{}, error) {
 
 }
 
-func SeekRecordFromDat(file string, seek int64) (*GexDataGene, error) {
+func SeekRecordFromDat(file string, seek int64) (*GexGene, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	log.Debug().Msgf("Seeking to position: %s %d", file, seek)
+	//log.Debug().Msgf("Seeking to position: %s %d", file, seek)
 
 	return _seekRecordFromDat(f, seek)
 }
 
-func _seekRecordFromDat(f *os.File, seek int64) (*GexDataGene, error) {
+func _seekRecordFromDat(f *os.File, seek int64) (*GexGene, error) {
 
 	// Read offset table (256 uint32s = 1024 bytes)
 	f.Seek(seek, 0) // Skip the magic byte
 
 	// Use MessagePack decoder from current position
 	dec := msgpack.NewDecoder(f)
-	var record GexDataGene
+
+	var record GexGene
+
 	err := dec.Decode(&record)
 	if err != nil {
 		return nil, err

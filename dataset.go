@@ -71,7 +71,7 @@ type Gene struct {
 }
 
 // Used only for reading data
-type GexDataGene struct {
+type GexGene struct {
 	Ensembl    string      `json:"id" msgpack:"id"`
 	GeneSymbol string      `json:"sym" msgpack:"sym"`
 	Data       [][]float64 `json:"gex" msgpack:"gex"`
@@ -197,10 +197,10 @@ func (cache *DatasetCache) Gex(
 
 	ret := GexResults{
 		Dataset: cache.dataset.PublicId,
-		Genes:   make([]*GexDataGene, 0, len(genes)),
+		Genes:   make([]*GexGene, 0, len(genes)),
 	}
 
-	var gexCache = make(map[string]*GexDataGene)
+	var gexCache = make(map[string]*GexGene)
 
 	for _, gene := range genes {
 		gexFile := filepath.Join(gexUrl, gene.File)
@@ -334,7 +334,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	defer db.Close()
 
-	clusters := make([]*Cluster, 0, 30)
+	clusters := make([]*Cluster, 0, 50)
 
 	rows, err := db.Query(CLUSTERS_SQL)
 
@@ -417,6 +417,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 	defer db.Close()
 
+	// 50k for the num of genes we expect
 	ret := make([]*Gene, 0, 50000)
 
 	rows, err := db.Query(GENES_SQL)
