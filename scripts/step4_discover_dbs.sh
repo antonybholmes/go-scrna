@@ -1,6 +1,6 @@
 dir=data/modules/scrna
 
-python scripts/discover_dbs.py --dir=${dir} 
+python discover_dbs.py --dir=${dir} 
 
  
 rm ${dir}/scrna.db
