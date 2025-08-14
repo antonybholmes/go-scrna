@@ -116,8 +116,6 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
                 # Unpack as 256 unsigned ints (little-endian)
                 offsets = struct.unpack(f"<{num_entries}I", data)
 
-                print("Offsets:", offsets)
-
                 for i, offset in enumerate(offsets):
                     seek = dat_offset + offset
                     fin.seek(seek)

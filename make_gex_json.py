@@ -64,7 +64,7 @@ for line in f:
 
     genes.append(out)
 
-    encoded = msgpack.packb(out)
+    encoded = msgpack.packb(out, use_single_float=True)
     offsets.append(len(buffer))
     buffer += encoded
 
@@ -99,9 +99,9 @@ for line in f:
 f.close()
 
 if len(genes) > 0:
-    fout = path.join(dir, f"gex_{block}.json.gz")
-    with gzip.open(fout, "wt", encoding="utf-8") as f:
-        json.dump(genes, f)  # , indent=2)
+    # fout = path.join(dir, f"gex_{block}.json.gz")
+    # with gzip.open(fout, "wt", encoding="utf-8") as f:
+    #     json.dump(genes, f)  # , indent=2)
 
     fout = path.join(dir, f"gex_{block}.dat")
     with open(fout, "wb") as f:
