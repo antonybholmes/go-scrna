@@ -3,12 +3,13 @@ package scrna
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-func ReadRecordFromDat(file string, index int) (interface{}, error) {
+func ReadGexGeneFromDat(file string, index int) (interface{}, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -23,7 +24,7 @@ func ReadRecordFromDat(file string, index int) (interface{}, error) {
 		return nil, err
 	}
 
-	offsets := make([]uint32, numEntries)
+	offsets := make([]uint32, numEntries*2)
 	err = binary.Read(f, binary.LittleEndian, &offsets)
 	if err != nil {
 		return nil, err
@@ -34,15 +35,16 @@ func ReadRecordFromDat(file string, index int) (interface{}, error) {
 	}
 
 	// Calculate absolute position of the record in the file
-	dataStart := int64(1 + 4 + numEntries*4) // header size
+	dataStart := int64(1 + 4 + numEntries*4*2) // header size
 	recordOffset := int64(offsets[index])
+	recordSize := offsets[index+1]
 	recordPos := dataStart + recordOffset
 
-	return _seekRecordFromDat(f, recordPos)
+	return _seekGexGeneFromDat(f, recordPos, recordSize)
 
 }
 
-func SeekRecordFromDat(file string, seek int64) (*GexGene, error) {
+func SeekGexGeneFromDat(file string, seek int64, size uint32) (*GexGene, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -51,20 +53,35 @@ func SeekRecordFromDat(file string, seek int64) (*GexGene, error) {
 
 	//log.Debug().Msgf("Seeking to position: %s %d", file, seek)
 
-	return _seekRecordFromDat(f, seek)
+	return _seekGexGeneFromDat(f, seek, size)
 }
 
-func _seekRecordFromDat(f *os.File, seek int64) (*GexGene, error) {
+func _seekGexGeneFromDat(f *os.File, seek int64, size uint32) (*GexGene, error) {
 
 	// Read offset table (256 uint32s = 1024 bytes)
-	f.Seek(seek, 0) // Skip the magic byte
+	_, err := f.Seek(seek, 0) // Skip the magic byte
+
+	if err != nil {
+		return nil, err
+	}
+
+	// Read exactly 'size' bytes
+	buf := make([]byte, size)
+	_, err = io.ReadFull(f, buf)
+
+	if err != nil {
+		return nil, err
+	}
 
 	// Use MessagePack decoder from current position
-	dec := msgpack.NewDecoder(f)
+	//dec := msgpack.NewDecoder(f)
 
 	var record GexGene
 
-	err := dec.Decode(&record)
+	//err := dec.Decode(&record)
+
+	err = msgpack.Unmarshal(buf, &record)
+
 	if err != nil {
 		return nil, err
 	}

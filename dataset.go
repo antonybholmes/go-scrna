@@ -43,7 +43,8 @@ const FIND_GENE_SQL = `SELECT
 	gex.ensembl_id,
 	gex.gene_symbol,
 	gex.file,
-	gex.offset
+	gex.offset,
+	gex.size
 	FROM gex
 	WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
 	LIMIT 1`
@@ -68,6 +69,7 @@ type Gene struct {
 	File       string `json:"-"`
 	Id         int    `json:"-"`
 	Offset     int64  `json:"-"`
+	Size       uint32 `json:"-"`
 }
 
 // Used only for reading data
@@ -157,7 +159,8 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 			&gene.Ensembl,
 			&gene.GeneSymbol,
 			&gene.File,
-			&gene.Offset)
+			&gene.Offset,
+			&gene.Size)
 
 		if err == nil {
 			// add as many genes as possible
@@ -217,7 +220,7 @@ func (cache *DatasetCache) Gex(
 			// }
 			// defer f.Close()
 
-			data, err := SeekRecordFromDat(gexFile, gene.Offset)
+			data, err := SeekGexGeneFromDat(gexFile, gene.Offset, gene.Size)
 
 			if err != nil {
 				return nil, err

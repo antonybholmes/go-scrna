@@ -44,7 +44,8 @@ CREATE TABLE gex (
 	ensembl_id TEXT NOT NULL,
 	gene_symbol TEXT NOT NULL, 
 	file TEXT NOT NULL,
-	offset INTEGER NOT NULL
+	offset INTEGER NOT NULL,
+	size INTEGER NOT NULL
 );
 
 CREATE INDEX gex_ensembl_id_idx ON gex (ensembl_id);

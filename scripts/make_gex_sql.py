@@ -111,12 +111,16 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
                 # Step 1: Read the offset table entry
 
                 num_entries = struct.unpack("<I", fin.read(4))[0]
-                dat_offset = 1 + 4 + num_entries * 4
-                data = fin.read(num_entries * 4)
-                # Unpack as 256 unsigned ints (little-endian)
-                offsets = struct.unpack(f"<{num_entries}I", data)
 
-                for i, offset in enumerate(offsets):
+                data = fin.read(num_entries * 4 * 2)
+                # Unpack as 256 unsigned ints (little-endian)
+                offsets = struct.unpack(f"<{num_entries*2}I", data)
+
+                print(f, num_entries)
+                dat_offset = 1 + 4 + num_entries * 4 * 2
+                for i in range(0, len(offsets), 2):
+                    offset = offsets[i]
+                    size = offsets[i + 1]
                     seek = dat_offset + offset
                     fin.seek(seek)
 
@@ -128,7 +132,7 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
                     sym = record["sym"]
 
                     print(
-                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset) VALUES ('{id}', '{sym}', '{f}', {seek});",
+                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{id}', '{sym}', '{f}', {seek}, {size});",
                         file=sqlf,
                     )
 
