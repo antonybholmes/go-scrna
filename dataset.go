@@ -64,8 +64,8 @@ type Dataset struct {
 }
 
 type Gene struct {
-	Ensembl    string `json:"id"`
-	GeneSymbol string `json:"sym"`
+	Ensembl    string `json:"geneId"`
+	GeneSymbol string `json:"geneSymbol"`
 	File       string `json:"-"`
 	Id         int    `json:"-"`
 	Offset     int64  `json:"-"`
