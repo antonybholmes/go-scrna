@@ -74,8 +74,8 @@ type Gene struct {
 
 // Used only for reading data
 type GexGene struct {
-	Ensembl    string `json:"id" msgpack:"id"`
-	GeneSymbol string `json:"sym" msgpack:"sym"`
+	GeneId     string `json:"geneId" msgpack:"id"`
+	GeneSymbol string `json:"geneSymbol" msgpack:"sym"`
 	// msgpack forced encoding of 32bit floats as that
 	// is sufficient precision for gene expression data
 	Data [][2]float32 `json:"gex" msgpack:"gex"`
