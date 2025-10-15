@@ -12,6 +12,19 @@ import msgpack
 import struct
 import uuid_utils as uuid
 
+
+def write_entries(block: int, offsets: list[tuple[int, int]], buffer: bytes):
+    fout = path.join(dir, f"gex_{block}.dat")
+
+    with open(fout, "wb") as f:
+        f.write(struct.pack("<B", 42))  # magic
+        f.write(struct.pack("<I", len(offsets)))  # number of entries
+        for offset in offsets:
+            f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
+            f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
+        f.write(buffer)
+
+
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
 parser.add_argument("-i", "--institution", help="institution")
@@ -21,7 +34,7 @@ parser.add_argument("-d", "--dir", help="dir")
 parser.add_argument("-c", "--cells", help="cells")
 parser.add_argument("-l", "--clusters", help="clusters")
 parser.add_argument("-f", "--file", help="file")
-parser.add_argument("-b", "--blocksize", help="block size", default=4096, type=int)
+parser.add_argument("-b", "--blocksize", help="block size", default=2048, type=int)
 
 args = parser.parse_args()
 file = args.file
@@ -37,16 +50,69 @@ block_size = args.blocksize
 # BLOCK_SIZE = 4096  # 2^16 256
 
 
-def write_entries(block: int, offsets: list[tuple[int, int]], buffer: bytes):
-    fout = path.join(dir, f"gex_{block}.dat")
+df_hugo = pd.read_csv(
+    "/ifs/archive/cancer/Lab_RDF/scratch_Lab_RDF/ngs/references/hugo/hugo_20240524.tsv",
+    sep="\t",
+    header=0,
+    keep_default_na=False,
+)
 
-    with open(fout, "wb") as f:
-        f.write(struct.pack("<B", 42))  # magic
-        f.write(struct.pack("<I", len(offsets)))  # number of entries
-        for offset in offsets:
-            f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
-            f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
-        f.write(buffer)
+official_symbols = {}
+
+gene_ids = []
+gene_id_map = {}
+prev_gene_id_map = {}
+alias_gene_id_map = {}
+gene_db_map = {}
+
+for i, gene_symbol in enumerate(df_hugo["Approved symbol"].values):
+
+    # genes = [gene_id] + list(
+    #     filter(
+    #         lambda x: x != "",
+    #         [x.strip() for x in df_hugo["Previous symbols"].values[i].split(",")],
+    #     )
+    # )
+
+    hugo = df_hugo["HGNC ID"].values[i]
+    ensembl = df_hugo["Ensembl gene ID"].values[i].split(".")[0]
+    refseq = df_hugo["RefSeq IDs"].values[i].replace(" ", "")
+    ncbi = df_hugo["NCBI Gene ID"].values[i].replace(" ", "")
+
+    official_symbols[hugo] = {
+        "hugo": hugo,
+        "mgi": "",
+        "gene_symbol": gene_symbol,
+        "ensembl": ensembl,
+        "refseq": refseq,
+        "ncbi": ncbi,
+    }
+
+    gene_id_map[hugo] = hugo
+    gene_id_map[gene_symbol] = hugo
+    gene_id_map[ensembl] = hugo
+    gene_id_map[refseq] = hugo
+    gene_id_map[ncbi] = hugo
+
+    for g in [x.strip() for x in df_hugo["Previous symbols"].values[i].split(",")]:
+        prev_gene_id_map[g] = hugo
+
+    for g in [x.strip() for x in df_hugo["Alias symbols"].values[i].split(",")]:
+        alias_gene_id_map[g] = hugo
+
+    index = i + 1
+    gene_db_map[hugo] = index
+    # gene_db_map[gene_symbol] = index
+    # gene_db_map[refseq] = index
+    # gene_db_map[ncbi] = index
+
+    # for g in [x.strip() for x in df_hugo["Previous symbols"].values[i].split(",")]:
+    #     gene_db_map[g] = index
+
+    # for g in [x.strip() for x in df_hugo["Alias symbols"].values[i].split(",")]:
+    #     gene_db_map[g] = index
+
+    gene_ids.append(hugo)
 
 
 public_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
@@ -82,7 +148,24 @@ for line in f:
     tokens = line.decode().strip().split("\t")
     g = tokens[0]
     # print(g)
-    ensembl, symbol = g.split(";")
+    # ensembl, symbol = g.split(";")
+
+    hugo = ""
+
+    if g in gene_id_map:
+        hugo = gene_id_map[g]
+
+    if hugo == "" and g in prev_gene_id_map:
+        hugo = prev_gene_id_map[g]
+
+    if hugo == "":
+        # print(f"reject, unknown gene {g}", file=sys.stderr)
+        continue
+
+    # print(f"accept {g} as {hugo}", file=sys.stderr)
+
+    official = official_symbols[hugo]
+    ensembl = official["ensembl"]
 
     data = np.array([float(x) for x in tokens[1:]])
 
@@ -93,12 +176,12 @@ for line in f:
         continue
 
     # reject if not in 10 of cells
-    idx = np.where(data > 0)[0]
+    idx = np.where(np.round(data, 4) != 0)[0]
 
     # if idx.size < data.size:
-    #    print("reject, not enough cells", g)
+    #    print("reject, not enough cells", idx.size, data.size)
 
-    sparse_data = [[int(i), round(data[i], 4)] for i in idx if round(data[i], 4) > 0]
+    sparse_data = [[int(i), round(data[i], 4)] for i in idx]
 
     # if len(idx) < 20:
     # print("reject, not enough cells", g)
@@ -116,7 +199,7 @@ for line in f:
     # flatten
     # sparse_data = [item for sublist in sparse_data for item in sublist]
 
-    out = {"id": ensembl, "sym": symbol, "gex": sparse_data}
+    out = {"id": ensembl, "sym": g, "gex": sparse_data}
 
     genes.append(out)
 
