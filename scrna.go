@@ -7,39 +7,117 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
-// approx size of dataset
-const DATASET_SIZE = 500
+type (
+	Idtype struct {
+		Name string `json:"name"`
+		Id   int    `json:"id"`
+	}
 
-const SPECIES_SQL = `SELECT DISTINCT
+	NameValueType struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	}
+
+	Species  = Idtype
+	GexValue = Idtype
+
+	// type GexType string
+
+	// const (
+	// 	GEX_TYPE_RNA_SEQ        GexType = "RNA-seq"
+	// 	GEX_TYPE_RNA_MICROARRAY GexType = "Microarray"
+	//)
+
+	Sample struct {
+		PublicId string          `json:"publicId"`
+		Name     string          `json:"name"`
+		AltNames []string        `json:"altNames"`
+		Metadata []NameValueType `json:"metadata"`
+		Id       int             `json:"-"`
+	}
+
+	//  RNASeqGex struct {
+	// 	Dataset int     `json:"dataset"`
+	// 	Sample  int     `json:"sample"`
+	// 	Gene    int     `json:"gene"`
+	// 	Counts  int     `json:"counts"`
+	// 	TPM     float32 `json:"tpm"`
+	// 	VST     float32 `json:"vst"`
+	// }
+
+	//  MicroarrayGex struct {
+	// 	Dataset int     `json:"dataset"`
+	// 	Sample  int     `json:"sample"`
+	// 	Gene    int     `json:"gene"`
+	// 	RMA     float32 `json:"vst"`
+	// }
+
+	ResultSample struct {
+		//Dataset int     `json:"dataset"`
+		Id int `json:"id"`
+		//Gene    int     `json:"gene"`
+		//Counts int     `json:"counts"`
+		////TPM    float32 `json:"tpm"`
+		//VST    float32 `json:"vst"`
+		Value float32 `json:"value"`
+	}
+
+	ResultDataset struct {
+		PublicId string    `json:"publicId"`
+		Values   []float32 `json:"values"`
+	}
+
+	GexResults struct {
+		// we use the simpler value type for platform in search
+		// results so that the value types are not repeated in
+		// each search. The useful info in a search is just
+		// the platform name and id
+
+		//Dataset *Dataset      `json:"dataset"`
+		Dataset string     `json:"dataset"`
+		Genes   []*GexGene `json:"genes"`
+	}
+
+	DatasetsCache struct {
+		dir  string
+		path string
+	}
+)
+
+// approx size of dataset
+const (
+	DatasetSize = 500
+
+	SpeciesSQL = `SELECT DISTINCT
 	species,
 	FROM datasets
 	ORDER BY species`
 
-const ASSEMBLIES_SQL = `SELECT
+	AssembliesSql = `SELECT
 	datasets.assembly
 	FROM datasets
 	WHERE datasets.species = ?1 
 	ORDER BY datasets.assembly`
 
-const ALL_TECHNOLOGIES_SQL = `SELECT DISTINCT 
+	AllTechnologiesSql = `SELECT DISTINCT
 	species, technology, platform 
 	FROM datasets 
 	ORDER BY species, technology, platform`
 
-// const ALL_VALUE_TYPES_SQL = `SELECT
-// 	gex_value_types.id,
-// 	gex_value_types.name
-// 	FROM gex_value_types
-// 	ORDER BY gex_value_types.platform_id, gex_value_types.id`
+	// const ALL_VALUE_TYPES_SQL = `SELECT
+	// 	gex_value_types.id,
+	// 	gex_value_types.name
+	// 	FROM gex_value_types
+	// 	ORDER BY gex_value_types.platform_id, gex_value_types.id`
 
-// const VALUE_TYPES_SQL = `SELECT
-// 	gex_value_types.id,
-// 	gex_value_types.name
-// 	FROM gex_value_types
-// 	WHERE gex_value_types.platform_id = ?1
-// 	ORDER BY gex_value_types.id`
+	// const VALUE_TYPES_SQL = `SELECT
+	// 	gex_value_types.id,
+	// 	gex_value_types.name
+	// 	FROM gex_value_types
+	// 	WHERE gex_value_types.platform_id = ?1
+	// 	ORDER BY gex_value_types.id`
 
-const DATASETS_SQL = `SELECT 
+	DatasetsSql = `SELECT 
 	datasets.id,
 	datasets.public_id,
 	datasets.name,
@@ -53,7 +131,7 @@ const DATASETS_SQL = `SELECT
 	WHERE datasets.species = ?1 AND datasets.assembly = ?2
 	ORDER BY datasets.name`
 
-const DATASET_SQL = `SELECT 
+	DatasetSql = `SELECT 
 	datasets.id,
 	datasets.public_id,
 	datasets.name,
@@ -65,6 +143,7 @@ const DATASET_SQL = `SELECT
 	datasets.description
 	FROM datasets 
 	WHERE datasets.public_id = ?1`
+)
 
 // const DATASETS_SQL = `SELECT
 // 	name
@@ -72,81 +151,6 @@ const DATASET_SQL = `SELECT
 // 	ORDER BY datasets.name`
 
 // type GexValue string
-
-type Idtype struct {
-	Name string `json:"name"`
-	Id   int    `json:"id"`
-}
-
-type NameValueType struct {
-	Name  string `json:"name"`
-	Value string `json:"value"`
-}
-
-type Species = Idtype
-type GexValue = Idtype
-
-// type GexType string
-
-// const (
-// 	GEX_TYPE_RNA_SEQ        GexType = "RNA-seq"
-// 	GEX_TYPE_RNA_MICROARRAY GexType = "Microarray"
-//)
-
-type Sample struct {
-	PublicId string          `json:"publicId"`
-	Name     string          `json:"name"`
-	AltNames []string        `json:"altNames"`
-	Metadata []NameValueType `json:"metadata"`
-	Id       int             `json:"-"`
-}
-
-// type RNASeqGex struct {
-// 	Dataset int     `json:"dataset"`
-// 	Sample  int     `json:"sample"`
-// 	Gene    int     `json:"gene"`
-// 	Counts  int     `json:"counts"`
-// 	TPM     float32 `json:"tpm"`
-// 	VST     float32 `json:"vst"`
-// }
-
-// type MicroarrayGex struct {
-// 	Dataset int     `json:"dataset"`
-// 	Sample  int     `json:"sample"`
-// 	Gene    int     `json:"gene"`
-// 	RMA     float32 `json:"vst"`
-// }
-
-type ResultSample struct {
-	//Dataset int     `json:"dataset"`
-	Id int `json:"id"`
-	//Gene    int     `json:"gene"`
-	//Counts int     `json:"counts"`
-	////TPM    float32 `json:"tpm"`
-	//VST    float32 `json:"vst"`
-	Value float32 `json:"value"`
-}
-
-type ResultDataset struct {
-	PublicId string    `json:"publicId"`
-	Values   []float32 `json:"values"`
-}
-
-type GexResults struct {
-	// we use the simpler value type for platform in search
-	// results so that the value types are not repeated in
-	// each search. The useful info in a search is just
-	// the platform name and id
-
-	//Dataset *Dataset      `json:"dataset"`
-	Dataset string     `json:"dataset"`
-	Genes   []*GexGene `json:"genes"`
-}
-
-type DatasetsCache struct {
-	dir  string
-	path string
-}
 
 func NewDatasetsCache(dir string) *DatasetsCache {
 
@@ -202,7 +206,7 @@ func (cache *DatasetsCache) Species() ([]string, error) {
 
 	species := make([]string, 0, 10)
 
-	rows, err := db.Query(SPECIES_SQL)
+	rows, err := db.Query(SpeciesSQL)
 
 	if err != nil {
 		return nil, err
@@ -237,7 +241,7 @@ func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
 
 	assemblies := make([]string, 0, 10)
 
-	rows, err := db.Query(ASSEMBLIES_SQL, species)
+	rows, err := db.Query(AssembliesSql, species)
 
 	if err != nil {
 		return nil, err
@@ -275,7 +279,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 
 	log.Debug().Msgf("%s %s", species, assembly)
 
-	datasetRows, err := db.Query(DATASETS_SQL, species, assembly)
+	datasetRows, err := db.Query(DatasetsSql, species, assembly)
 
 	if err != nil {
 		log.Debug().Msgf("%s", err)
@@ -335,7 +339,7 @@ func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 
 	var dataset Dataset
 
-	err = db.QueryRow(DATASET_SQL, publicId).Scan(
+	err = db.QueryRow(DatasetSql, publicId).Scan(
 		&dataset.Id,
 		&dataset.PublicId,
 		&dataset.Name,

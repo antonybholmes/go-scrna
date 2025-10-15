@@ -1,4 +1,4 @@
-package scrnadbcache
+package cache
 
 import (
 	"sync"

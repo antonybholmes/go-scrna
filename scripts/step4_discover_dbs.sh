@@ -1,4 +1,4 @@
-dir=data/modules/scrna
+dir=../data/modules/scrna
 
 python discover_dbs.py --dir=${dir} 
 

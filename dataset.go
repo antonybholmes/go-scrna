@@ -9,11 +9,99 @@ import (
 	"github.com/rs/zerolog/log"
 )
 
+type (
+	Dataset struct {
+		PublicId    string `json:"publicId"`
+		Name        string `json:"name"`
+		Species     string `json:"species"`
+		Assembly    string `json:"assembly"`
+		Url         string `json:"-"`
+		Institution string `json:"institution"`
+		Description string `json:"description"`
+		Cells       uint   `json:"cells"`
+		Id          int    `json:"-"`
+	}
+
+	Gene struct {
+		Ensembl    string `json:"geneId"`
+		GeneSymbol string `json:"geneSymbol"`
+		File       string `json:"-"`
+		Id         int    `json:"-"`
+		Offset     int64  `json:"-"`
+		Size       uint32 `json:"-"`
+	}
+
+	// Used only for reading data
+	GexGene struct {
+		GeneId     string `json:"geneId" msgpack:"id"`
+		GeneSymbol string `json:"geneSymbol" msgpack:"sym"`
+		// msgpack forced encoding of 32bit floats as that
+		// is sufficient precision for gene expression data
+		Data [][2]float32 `json:"gex" msgpack:"gex"`
+	}
+
+	// More human readable for output
+	//   GexResultGene struct {
+	// 	Ensembl    string      `json:"geneId"`
+	// 	GeneSymbol string      `json:"geneSymbol"`
+	// 	Gex        [][]float64 `json:"gex"`
+	// }
+
+	Cluster struct {
+		Id        string `json:"-"`
+		Group     string `json:"group"`
+		ScClass   string `json:"scClass"`
+		Color     string `json:"color"`
+		ClusterId uint   `json:"clusterId"`
+		CellCount uint   `json:"cells"`
+	}
+
+	DatasetClusters struct {
+		PublicId string     `json:"publicId"`
+		Clusters []*Cluster `json:"clusters"`
+	}
+
+	Pos struct {
+		X float32 `json:"x"`
+		Y float32 `json:"y"`
+	}
+
+	SingleCell struct {
+		Id      string `json:"-"`
+		Barcode string `json:"barcode"`
+		Sample  string `json:"sample"`
+		Cluster uint   `json:"clusterId"`
+		//UmapX   float32 `json:"umapX"`
+		//UmapY   float32 `json:"umapY"`
+		Pos Pos `json:"pos"`
+	}
+
+	DatasetMetadata struct {
+		PublicId string        `json:"publicId"`
+		Clusters []*Cluster    `json:"clusters"`
+		Cells    []*SingleCell `json:"cells"`
+	}
+
+	// Either a probe or gene
+	// type ResultFeature struct {
+	// 	//ProbeId string `json:"probeId,omitempty"`
+	// 	Gene *Gene `json:"gene"`
+	// 	//Platform     *ValueType       `json:"platform"`
+	// 	//GexValue *GexValue    `json:"gexType"`
+	// 	Gex [][]float32 `json:"gex"`
+	// }
+
+	DatasetCache struct {
+		dataset *Dataset
+	}
+)
+
 // keep them in the entered order so we can preserve
 // groupings such as N/GC/M which are not alphabetical
-const CELL_COUNT_SQL = `SELECT COUNT(cells.id) FROM cells`
+const (
+	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
 
-const CLUSTERS_SQL = `SELECT 
+	ClustersSql = `SELECT 
 	clusters.id,
 	clusters.cluster_id,
 	clusters.sc_group,
@@ -22,23 +110,25 @@ const CLUSTERS_SQL = `SELECT
 	clusters.color
 	FROM clusters`
 
-const CELLS_SQL = `SELECT 
+	CellsSql = `SELECT 
 	cells.id,
 	cells.barcode,
 	cells.umap_x,
 	cells.umap_y,
 	cells.cluster_id,
-	cells.sample
-	FROM cells`
+	samples.name
+	FROM cells
+	JOIN samples ON cells.sample_id = samples.id
+	ORDER BY cells.id`
 
-const GENES_SQL = `SELECT 
+	GenesSql = `SELECT 
 	gex.id, 
 	gex.ensembl_id,
 	gex.gene_symbol 
 	FROM gex
 	ORDER BY gex.gene_symbol`
 
-const FIND_GENE_SQL = `SELECT 
+	FindGeneSql = `SELECT 
 	gex.id, 
 	gex.ensembl_id,
 	gex.gene_symbol,
@@ -49,92 +139,8 @@ const FIND_GENE_SQL = `SELECT
 	WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
 	LIMIT 1`
 
-const SEARCH_GENE_SQL = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
-
-type Dataset struct {
-	PublicId    string `json:"publicId"`
-	Name        string `json:"name"`
-	Species     string `json:"species"`
-	Assembly    string `json:"assembly"`
-	Url         string `json:"-"`
-	Institution string `json:"institution"`
-	Description string `json:"description"`
-	Cells       uint   `json:"cells"`
-	Id          int    `json:"-"`
-}
-
-type Gene struct {
-	Ensembl    string `json:"geneId"`
-	GeneSymbol string `json:"geneSymbol"`
-	File       string `json:"-"`
-	Id         int    `json:"-"`
-	Offset     int64  `json:"-"`
-	Size       uint32 `json:"-"`
-}
-
-// Used only for reading data
-type GexGene struct {
-	GeneId     string `json:"geneId" msgpack:"id"`
-	GeneSymbol string `json:"geneSymbol" msgpack:"sym"`
-	// msgpack forced encoding of 32bit floats as that
-	// is sufficient precision for gene expression data
-	Data [][2]float32 `json:"gex" msgpack:"gex"`
-}
-
-// More human readable for output
-// type GexResultGene struct {
-// 	Ensembl    string      `json:"geneId"`
-// 	GeneSymbol string      `json:"geneSymbol"`
-// 	Gex        [][]float64 `json:"gex"`
-// }
-
-type Cluster struct {
-	Id        string `json:"-"`
-	Group     string `json:"group"`
-	ScClass   string `json:"scClass"`
-	Color     string `json:"color"`
-	ClusterId uint   `json:"clusterId"`
-	CellCount uint   `json:"cells"`
-}
-
-type DatasetClusters struct {
-	PublicId string     `json:"publicId"`
-	Clusters []*Cluster `json:"clusters"`
-}
-
-type Pos struct {
-	X float32 `json:"x"`
-	Y float32 `json:"y"`
-}
-
-type SingleCell struct {
-	Id      string `json:"-"`
-	Barcode string `json:"barcode"`
-	Sample  string `json:"sample"`
-	Cluster uint   `json:"clusterId"`
-	//UmapX   float32 `json:"umapX"`
-	//UmapY   float32 `json:"umapY"`
-	Pos Pos `json:"pos"`
-}
-
-type DatasetMetadata struct {
-	PublicId string        `json:"publicId"`
-	Clusters []*Cluster    `json:"clusters"`
-	Cells    []*SingleCell `json:"cells"`
-}
-
-// Either a probe or gene
-// type ResultFeature struct {
-// 	//ProbeId string `json:"probeId,omitempty"`
-// 	Gene *Gene `json:"gene"`
-// 	//Platform     *ValueType       `json:"platform"`
-// 	//GexValue *GexValue    `json:"gexType"`
-// 	Gex [][]float32 `json:"gex"`
-// }
-
-type DatasetCache struct {
-	dataset *Dataset
-}
+	SearchGeneSql = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
+)
 
 func NewDatasetCache(dataset *Dataset) *DatasetCache {
 	return &DatasetCache{dataset: dataset}
@@ -154,7 +160,7 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 
 	for _, g := range genes {
 		var gene Gene
-		err := db.QueryRow(FIND_GENE_SQL, g).Scan(
+		err := db.QueryRow(FindGeneSql, g).Scan(
 			&gene.Id,
 			&gene.Ensembl,
 			&gene.GeneSymbol,
@@ -341,7 +347,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	clusters := make([]*Cluster, 0, 50)
 
-	rows, err := db.Query(CLUSTERS_SQL)
+	rows, err := db.Query(ClustersSql)
 
 	if err != nil {
 		return nil, err
@@ -369,7 +375,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	var cellCount uint
 
-	err = db.QueryRow(CELL_COUNT_SQL).Scan(&cellCount)
+	err = db.QueryRow(CellCountSql).Scan(&cellCount)
 
 	if err != nil {
 		return nil, err
@@ -377,7 +383,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	cells := make([]*SingleCell, 0, cellCount)
 
-	rows, err = db.Query(CELLS_SQL)
+	rows, err = db.Query(CellsSql)
 
 	if err != nil {
 		return nil, err
@@ -425,7 +431,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 	// 50k for the num of genes we expect
 	ret := make([]*Gene, 0, 50000)
 
-	rows, err := db.Query(GENES_SQL)
+	rows, err := db.Query(GenesSql)
 
 	if err != nil {
 		return nil, err
@@ -498,7 +504,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 	// 	andClauses = append(andClauses, "("+strings.Join(tagClauses, " AND ")+")")
 	// }
 
-	finalSQL := SEARCH_GENE_SQL + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
+	finalSQL := SearchGeneSql + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
 
 	//log.Debug().Msgf("query %s", query)
 	//log.Debug().Msgf("sql %s", finalSQL)

@@ -10,6 +10,7 @@ import numpy as np
 import sys
 import msgpack
 import struct
+import uuid_utils as uuid
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
@@ -20,6 +21,7 @@ parser.add_argument("-d", "--dir", help="dir")
 parser.add_argument("-c", "--cells", help="cells")
 parser.add_argument("-l", "--clusters", help="clusters")
 parser.add_argument("-f", "--file", help="file")
+parser.add_argument("-b", "--blocksize", help="block size", default=4096, type=int)
 
 args = parser.parse_args()
 file = args.file
@@ -29,12 +31,25 @@ institution = args.institution
 species = args.species
 assembly = args.assembly
 gex_dir = os.path.join(dir, "gex")
+block_size = args.blocksize
 
 
-BLOCK_SIZE = 4096  # 2^16 256
+# BLOCK_SIZE = 4096  # 2^16 256
 
 
-public_id = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+def write_entries(block: int, offsets: list[tuple[int, int]], buffer: bytes):
+    fout = path.join(dir, f"gex_{block}.dat")
+
+    with open(fout, "wb") as f:
+        f.write(struct.pack("<B", 42))  # magic
+        f.write(struct.pack("<I", len(offsets)))  # number of entries
+        for offset in offsets:
+            f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
+            f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
+        f.write(buffer)
+
+
+public_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
@@ -71,7 +86,7 @@ for line in f:
 
     data = np.array([float(x) for x in tokens[1:]])
 
-    s = data.sum()
+    s = np.sum(data)
 
     if s == 0:
         # print("reject, no exp", g)
@@ -80,16 +95,23 @@ for line in f:
     # reject if not in 10 of cells
     idx = np.where(data > 0)[0]
 
+    # if idx.size < data.size:
+    #    print("reject, not enough cells", g)
+
+    sparse_data = [[int(i), round(data[i], 4)] for i in idx if round(data[i], 4) > 0]
+
     # if len(idx) < 20:
     # print("reject, not enough cells", g)
     #    continue
 
-    sparse_matrix = sparse.coo_matrix(data)
-    # row unnecessary as we are looking at individual rows
-    sparse_data = [
-        [int(c), round(float(v), 4)]
-        for r, c, v in zip(sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)
-    ]
+    # sparse_matrix = sparse.coo_matrix(data)
+    # # row unnecessary as we are looking at individual rows
+
+    # # we record only the columns with non-zero values
+    # sparse_data = [
+    #     [int(c), round(float(v), 4)]
+    #     for r, c, v in zip(sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)
+    # ]
 
     # flatten
     # sparse_data = [item for sublist in sparse_data for item in sublist]
@@ -103,20 +125,31 @@ for line in f:
     offsets.append([len(buffer), len(encoded)])
     buffer += encoded
 
-    # bunch genes into blocks of 32
-    if len(genes) == BLOCK_SIZE:
+    # bunch genes into blocks of 4096 genes
+    if len(genes) == block_size:
         # fout = path.join(dir, f"gex_{block}.json.gz")
         # with gzip.open(fout, "wt", encoding="utf-8") as f:
         #     json.dump(genes, f)
-        fout = path.join(dir, f"gex_{block}.dat")
 
-        with open(fout, "wb") as f:
-            f.write(struct.pack("<B", 42))  # magic
-            f.write(struct.pack("<I", len(offsets)))  # number of entries
-            for offset in offsets:
-                f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
-                f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
-            f.write(buffer)
+        write_entries(block, offsets, buffer)
+
+        # fout = path.join(dir, f"gex_{block}.dat")
+
+        # with open(fout, "wb") as f:
+        #     f.write(struct.pack("<B", 42))  # magic
+        #     f.write(struct.pack("<I", len(offsets)))  # number of entries
+
+        #     # write the offset and size of each msgpack object
+        #     # in the file
+        #     for offset in offsets:
+        #         f.write(
+        #             struct.pack("<I", offset[0])
+        #         )  # where to find a msgpack bytes each offset
+        #         f.write(
+        #             struct.pack("<I", offset[1])
+        #         )  # how much to read to decode the msgpack object 4 bytes each size
+
+        #     f.write(buffer)
 
         genes = []
 
@@ -133,17 +166,16 @@ for line in f:
 
 f.close()
 
+# write any remaining genes
 if len(genes) > 0:
-    # fout = path.join(dir, f"gex_{block}.json.gz")
-    # with gzip.open(fout, "wt", encoding="utf-8") as f:
-    #     json.dump(genes, f)  # , indent=2)
+    write_entries(block, offsets, buffer)
 
-    fout = path.join(dir, f"gex_{block}.dat")
+    # fout = path.join(dir, f"gex_{block}.dat")
 
-    with open(fout, "wb") as f:
-        f.write(struct.pack("<B", 42))  # magic
-        f.write(struct.pack("<I", len(offsets)))  # number of entries
-        for offset in offsets:
-            f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
-            f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
-        f.write(buffer)
+    # with open(fout, "wb") as f:
+    #     f.write(struct.pack("<B", 42))  # magic
+    #     f.write(struct.pack("<I", len(offsets)))  # number of entries
+    #     for offset in offsets:
+    #         f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
+    #         f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
+    #     f.write(buffer)

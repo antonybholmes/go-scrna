@@ -13,17 +13,23 @@ CREATE TABLE dataset (
 
 CREATE TABLE samples (
 	id INTEGER PRIMARY KEY ASC,
+	public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE clusters (
 	id INTEGER PRIMARY KEY ASC,
-	cluster_id INTEGER NOT NULL UNIQUE, 
-	sc_group TEXT NOT NULL, 
-	sc_class TEXT NOT NULL,
+	public_id TEXT NOT NULL UNIQUE,
+	cluster_id INTEGER NOT NULL UNIQUE,
+	sc_group TEXT NOT NULL DEFAULT '', 
+	sc_class TEXT NOT NULL DEFAULT '',
 	cell_count INTEGER NOT NULL,
-	color TEXT NOT NULL
+	color TEXT NOT NULL DEFAULT ''
 );
+
+CREATE INDEX clusters_cluster_id_idx ON clusters (cluster_id);
+CREATE INDEX clusters_public_id_idx ON clusters (public_id);
+
 
 CREATE TABLE cells (
 	id INTEGER PRIMARY KEY ASC,
@@ -31,12 +37,14 @@ CREATE TABLE cells (
 	umap_x REAL NOT NULL, 
 	umap_y REAL NOT NULL, 
 	cluster_id INTEGER NOT NULL, 
-	sample TEXT NOT NULL
+	sample_id INTEGER NOT NULL,
+	FOREIGN KEY (cluster_id) REFERENCES clusters(id),
+	FOREIGN KEY (sample_id) REFERENCES samples(id)  
 );
 
--- CREATE INDEX cells_barcode_idx ON cells (barcode);
+CREATE INDEX cells_barcode_idx ON cells (barcode);
 CREATE INDEX cells_cluster_id_idx ON cells (cluster_id);
-CREATE INDEX cells_sample_idx ON cells (sample);
+CREATE INDEX cells_sample_id_idx ON cells (sample_id);
 
 
 CREATE TABLE gex (
