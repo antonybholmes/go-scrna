@@ -9,6 +9,7 @@ import msgpack
 import pandas as pd
 import numpy as np
 from nanoid import generate
+from pysam import index
 import uuid_utils as uuid
 
 import argparse
@@ -36,22 +37,33 @@ gex_dir = os.path.join(dir, "gex")
 public_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
-df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
+df_clusters = pd.read_csv(args.clusters, sep="\t", header=0, index_col=0)
+
+# get rid of clusters 101 etc
+df_cells = df_cells[df_cells["Cluster"].isin(df_clusters.index)]
+
+print(df_clusters)
+
 
 # use cells to count cells in each cluster
 counts = []
 
-for c in df_clusters["Cluster"].values:
+for c in df_clusters.index:
     count = len(df_cells[df_cells["Cluster"] == c])
     counts.append(count)
 
-df_clusters["Cells"] = counts
+print(counts)
 
+cluster_id_map = {c: i + 1 for i, c in enumerate(df_clusters.index)}
+
+# df_clusters["Cells"] = counts
+
+metadata_types = list(sorted(df_clusters.columns[1:].values))
 
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     print(
-        f"INSERT INTO dataset (public_id, name, institution, species, assembly, dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', '{dir}');",
+        f"INSERT INTO dataset (public_id, name, institution, species, assembly, cells, dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
         file=sqlf,
     )
 
@@ -70,12 +82,57 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     print("BEGIN TRANSACTION;", file=sqlf)
 
-    for i, row in df_clusters.iterrows():
+    for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
+        public_id = uuid.uuid7()
+
+        print(
+            f"INSERT INTO clusters (public_id, name, cell_count, color) VALUES ('{public_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
+            file=sqlf,
+        )
+
+    print("COMMIT;", file=sqlf)
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
+    for name in metadata_types:
         public_id = uuid.uuid7()
         print(
-            f"INSERT INTO clusters (public_id, cluster_id, sc_group, sc_class, cell_count, color) VALUES ('{public_id}', {row["Cluster"]}, '{row["Group"]}', '{row["scClass"]}', {row["Cells"]}, '{row["Color"]}');",
+            f"INSERT INTO metadata_types (public_id, name) VALUES ('{public_id}', '{name}');",
             file=sqlf,
-        ),
+        )
+
+    print("COMMIT;", file=sqlf)
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
+    metadata_map = collections.defaultdict(lambda: {})
+    index = 1
+    for i, name in enumerate(metadata_types):
+        for v in sorted(df_clusters[name].unique()):
+            public_id = uuid.uuid7()
+            print(
+                f"INSERT INTO metadata (public_id, metadata_type_id, value) VALUES ('{public_id}', {i + 1}, '{v}');",
+                file=sqlf,
+            )
+            metadata_map[name][v] = index
+            index += 1
+
+    print("COMMIT;", file=sqlf)
+
+    print("BEGIN TRANSACTION;", file=sqlf)
+
+    print(metadata_map, metadata_types)
+
+    for idx, (i, row) in enumerate(df_clusters.iterrows()):
+        for j, metadata_type in enumerate(metadata_types):
+
+            metadata_value = row[j + 1]
+            print(metadata_type, metadata_value)
+            metadata_id = metadata_map[metadata_type][metadata_value]
+            print(
+                f"INSERT INTO cluster_metadata (cluster_id, metadata_id) VALUES ({idx+1}, {metadata_id});",
+                file=sqlf,
+            )
 
     print("COMMIT;", file=sqlf)
 
@@ -83,7 +140,7 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     for i, row in df_cells.iterrows():
         print(
-            f"INSERT INTO cells (barcode, umap_x, umap_y, cluster_id, sample_id) VALUES ('{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]}, {row["Cluster"]}, {sample_map[row["Sample"]]});",
+            f"INSERT INTO cells (barcode, umap_x, umap_y, cluster_id, sample_id) VALUES ('{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]}, {cluster_id_map[row["Cluster"]]}, {sample_map[row["Sample"]]});",
             file=sqlf,
         ),
 
@@ -111,10 +168,15 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
             file = os.path.join(gex_dir, f)
             with open(file, "rb") as fin:
 
-                magic = fin.read(1)
+                magic = fin.read(4)
                 print("Magic:", file, magic[0])
 
                 # Step 1: Read the offset table entry
+
+                version = struct.unpack("<I", fin.read(4))[0]
+                print("Version:", version)
+                cells = struct.unpack("<I", fin.read(4))[0]
+                print("Cells:", cells)
 
                 # num genes
                 num_entries = struct.unpack("<I", fin.read(4))[0]
@@ -128,7 +190,7 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
                 print(f, num_entries)
 
                 # magic + num_entries + offsets = where msgpack data starts
-                dat_offset = 1 + 4 + num_entries * 4 * 2
+                dat_offset = 4 + 4 + 4 + 4 + num_entries * 4 * 2
 
                 for i in range(0, len(offsets), 2):
                     # relative offset for msgpack object
@@ -151,12 +213,12 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
                     # now we can get the id and gene symbol
                     id = record["id"]
-                    sym = record["sym"]
+                    gene_symbol = record["s"]
 
                     # log the offset and size in the db so we can search
                     # for a gene and then know where to find it in the file
                     print(
-                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{id}', '{sym}', '{f}', {seek}, {size});",
+                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{id}', '{gene_symbol}', '{f}', {seek}, {size});",
                         file=sqlf,
                     )
 

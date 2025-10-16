@@ -12,12 +12,16 @@ import msgpack
 import struct
 import uuid_utils as uuid
 
+VERSION = 1
 
-def write_entries(block: int, offsets: list[tuple[int, int]], buffer: bytes):
+
+def write_entries(cells, block: int, offsets: list[tuple[int, int]], buffer: bytes):
     fout = path.join(dir, f"gex_{block}.dat")
 
     with open(fout, "wb") as f:
-        f.write(struct.pack("<B", 42))  # magic
+        f.write(struct.pack("<I", 42))  # magic
+        f.write(struct.pack("<I", VERSION))  # version
+        f.write(struct.pack("<I", cells))  # size
         f.write(struct.pack("<I", len(offsets)))  # number of entries
         for offset in offsets:
             f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
@@ -35,6 +39,8 @@ parser.add_argument("-c", "--cells", help="cells")
 parser.add_argument("-l", "--clusters", help="clusters")
 parser.add_argument("-f", "--file", help="file")
 parser.add_argument("-b", "--blocksize", help="block size", default=2048, type=int)
+parser.add_argument("-m", "--minexp", help="minimum expression", default=1, type=float)
+
 
 args = parser.parse_args()
 file = args.file
@@ -45,10 +51,10 @@ species = args.species
 assembly = args.assembly
 gex_dir = os.path.join(dir, "gex")
 block_size = args.blocksize
-
+min_exp = args.minexp
 
 # BLOCK_SIZE = 4096  # 2^16 256
-
+print(block_size, file=sys.stderr)
 
 df_hugo = pd.read_csv(
     "/ifs/archive/cancer/Lab_RDF/scratch_Lab_RDF/ngs/references/hugo/hugo_20240524.tsv",
@@ -120,6 +126,11 @@ public_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
 
+cell_idx_in_use = np.where(df_cells["Cluster"].isin(df_clusters["Cluster"].values))[0]
+cells_not_in_use = np.where(~df_cells["Cluster"].isin(df_clusters["Cluster"].values))[0]
+
+df_cells = df_cells[df_cells["Cluster"].isin(df_clusters["Cluster"].values)]
+
 # use cells to count cells in each cluster
 counts = []
 
@@ -139,6 +150,11 @@ f.readline()
 c = 0
 block = 1
 
+# maximum number of cells
+cells = df_cells.shape[0]
+print("Cells", cells)
+
+
 genes = []
 
 offsets = []
@@ -147,16 +163,26 @@ buffer = b""
 for line in f:
     tokens = line.decode().strip().split("\t")
     g = tokens[0]
+
+    gids = g.split(";")
+
     # print(g)
     # ensembl, symbol = g.split(";")
 
     hugo = ""
 
-    if g in gene_id_map:
-        hugo = gene_id_map[g]
+    for gid in gids:
+        if gid in gene_id_map:
+            hugo = gene_id_map[gid]
+            break
 
-    if hugo == "" and g in prev_gene_id_map:
-        hugo = prev_gene_id_map[g]
+        if gid in alias_gene_id_map:
+            hugo = alias_gene_id_map[gid]
+            break
+
+        if gid in prev_gene_id_map:
+            hugo = prev_gene_id_map[gid]
+            break
 
     if hugo == "":
         # print(f"reject, unknown gene {g}", file=sys.stderr)
@@ -166,8 +192,12 @@ for line in f:
 
     official = official_symbols[hugo]
     ensembl = official["ensembl"]
+    symbol = official["gene_symbol"]
 
     data = np.array([float(x) for x in tokens[1:]])
+
+    # keep only cells in use
+    data = data[cell_idx_in_use]
 
     s = np.sum(data)
 
@@ -175,13 +205,16 @@ for line in f:
         # print("reject, no exp", g)
         continue
 
+    # reject if not expressed above min_exp in any cell
+    data[data < min_exp] = 0
+
     # reject if not in 10 of cells
-    idx = np.where(np.round(data, 4) != 0)[0]
+    idx = np.where(data > 0)[0]
 
     # if idx.size < data.size:
     #    print("reject, not enough cells", idx.size, data.size)
 
-    sparse_data = [[int(i), round(data[i], 4)] for i in idx]
+    sparse_data = [[int(i), float(data[i])] for i in idx]
 
     # if len(idx) < 20:
     # print("reject, not enough cells", g)
@@ -199,7 +232,16 @@ for line in f:
     # flatten
     # sparse_data = [item for sublist in sparse_data for item in sublist]
 
-    out = {"id": ensembl, "sym": g, "gex": sparse_data}
+    out = {"id": ensembl, "s": symbol, "d": sparse_data}
+
+    # if out["s"] == "AHR":
+    #     print("AHR", out)
+
+    #     with open("AHR.json", "w") as f:
+    #         json.dump(out, f)
+
+    #     df = pd.DataFrame(sparse_data, columns=["Cell", "Exp"])
+    #     df.to_csv("AHR.tsv", sep="\t", index=False)
 
     genes.append(out)
 
@@ -214,7 +256,9 @@ for line in f:
         # with gzip.open(fout, "wt", encoding="utf-8") as f:
         #     json.dump(genes, f)
 
-        write_entries(block, offsets, buffer)
+        print(f"block {block} with {len(genes)} genes")
+
+        write_entries(cells, block, offsets, buffer)
 
         # fout = path.join(dir, f"gex_{block}.dat")
 
@@ -251,14 +295,4 @@ f.close()
 
 # write any remaining genes
 if len(genes) > 0:
-    write_entries(block, offsets, buffer)
-
-    # fout = path.join(dir, f"gex_{block}.dat")
-
-    # with open(fout, "wb") as f:
-    #     f.write(struct.pack("<B", 42))  # magic
-    #     f.write(struct.pack("<I", len(offsets)))  # number of entries
-    #     for offset in offsets:
-    #         f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
-    #         f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
-    #     f.write(buffer)
+    write_entries(cells, block, offsets, buffer)

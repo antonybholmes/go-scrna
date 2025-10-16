@@ -19,25 +19,16 @@ type (
 		Institution string `json:"institution"`
 		Description string `json:"description"`
 		Cells       uint   `json:"cells"`
-		Id          int    `json:"-"`
+		Id          uint   `json:"-"`
 	}
 
 	Gene struct {
 		Ensembl    string `json:"geneId"`
 		GeneSymbol string `json:"geneSymbol"`
 		File       string `json:"-"`
-		Id         int    `json:"-"`
+		Id         uint   `json:"-"`
 		Offset     int64  `json:"-"`
 		Size       uint32 `json:"-"`
-	}
-
-	// Used only for reading data
-	GexGene struct {
-		GeneId     string `json:"geneId" msgpack:"id"`
-		GeneSymbol string `json:"geneSymbol" msgpack:"sym"`
-		// msgpack forced encoding of 32bit floats as that
-		// is sufficient precision for gene expression data
-		Data [][2]float32 `json:"gex" msgpack:"gex"`
 	}
 
 	// More human readable for output
@@ -47,18 +38,20 @@ type (
 	// 	Gex        [][]float64 `json:"gex"`
 	// }
 
-	Cluster struct {
-		Id        string `json:"-"`
-		Group     string `json:"group"`
-		ScClass   string `json:"scClass"`
-		Color     string `json:"color"`
-		ClusterId uint   `json:"clusterId"`
-		CellCount uint   `json:"cells"`
+	ClusterMetadata struct {
+		Id          uint   `json:"-"`
+		Name        string `json:"name"`
+		Value       string `json:"value"`
+		Description string `json:"description,omitempty"`
+		Color       string `json:"color,omitempty"`
 	}
 
-	DatasetClusters struct {
-		PublicId string     `json:"publicId"`
-		Clusters []*Cluster `json:"clusters"`
+	Cluster struct {
+		Id        uint                        `json:"id"`
+		Color     string                      `json:"color"`
+		Name      string                      `json:"name"`
+		CellCount uint                        `json:"cells"`
+		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
 	}
 
 	Pos struct {
@@ -67,7 +60,7 @@ type (
 	}
 
 	SingleCell struct {
-		Id      string `json:"-"`
+		Id      uint   `json:"-"`
 		Barcode string `json:"barcode"`
 		Sample  string `json:"sample"`
 		Cluster uint   `json:"clusterId"`
@@ -102,13 +95,22 @@ const (
 	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
 
 	ClustersSql = `SELECT 
-	clusters.id,
-	clusters.cluster_id,
-	clusters.sc_group,
-	clusters.sc_class,
-	clusters.cell_count,
-	clusters.color
-	FROM clusters`
+		clusters.id,
+		clusters.name,
+		clusters.cell_count,
+		clusters.color
+		FROM clusters`
+
+	ClusterMetadataSQL = `SELECT
+		cluster_metadata.id,
+		cluster_metadata.cluster_id,
+		metadata_types.name,
+		metadata.value,
+		metadata.color
+		FROM cluster_metadata
+		JOIN metadata ON cluster_metadata.metadata_id = metadata.id
+		JOIN metadata_types ON metadata.metadata_type_id = metadata_types.id
+		ORDER by cluster_metadata.cluster_id, metadata_types.id, metadata.id`
 
 	CellsSql = `SELECT 
 	cells.id,
@@ -148,7 +150,7 @@ func NewDatasetCache(dataset *Dataset) *DatasetCache {
 
 func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 
-	db, err := sql.Open("sqlite3", cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -191,7 +193,7 @@ func (cache *DatasetCache) Gex(
 		return nil, err
 	}
 
-	db, err := sql.Open("sqlite3", cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
 
 	datasetUrl := filepath.Dir(cache.dataset.Url)
 
@@ -337,7 +339,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open("sqlite3", dataset.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dataset.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -360,9 +362,7 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 		err := rows.Scan(
 			&cluster.Id,
-			&cluster.ClusterId,
-			&cluster.Group,
-			&cluster.ScClass,
+			&cluster.Name,
 			&cluster.CellCount,
 			&cluster.Color)
 
@@ -370,7 +370,35 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 			return nil, err
 		}
 
+		cluster.Metadata = make(map[string]*ClusterMetadata, 5)
+
 		clusters = append(clusters, &cluster)
+	}
+
+	// add metadata to clusters
+
+	var clusterId uint
+
+	rows, err = db.Query(ClusterMetadataSQL)
+
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var md = ClusterMetadata{}
+
+		err := rows.Scan(&md.Id, &clusterId, &md.Name, &md.Value, &md.Color)
+
+		if err != nil {
+			return nil, err
+		}
+
+		index := clusterId - 1
+
+		clusters[index].Metadata[md.Name] = &md
 	}
 
 	var cellCount uint
@@ -420,7 +448,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open("sqlite3", cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -459,24 +487,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 
 func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
 
-	// whereSql, args := sys.BoolQuery(query, func(placeholder string, exact bool) string {
-
-	// 	// if exact {
-	// 	// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
-	// 	// } else {
-	// 	// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
-	// 	// }
-
-	// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
-	// })
-
 	where, err := sys.SqlBoolQuery(query, func(placeholder uint, matchType sys.MatchType) string {
-
-		// if exact {
-		// 	return "(gex.gene_symbol = ? OR gex.ensembl_id = ?)"
-		// } else {
-		// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder)
-		// }
 
 		ph := fmt.Sprintf("?%d", placeholder)
 
@@ -487,30 +498,9 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 		return nil, err
 	}
 
-	// _, andTags := web.ParseQuery(query)
-
-	// andClauses := make([]string, 0, len(andTags))
-
-	// // required so that we can use it with sqlite params
-	// args := make([]interface{}, 0, len(andTags))
-
-	// for _, group := range andTags {
-	// 	tagClauses := make([]string, 0, len(group))
-	// 	for _, tag := range group {
-	// 		args = append(args, "%"+tag+"%")
-	// 		placeholder := fmt.Sprintf("?%d", len(args))
-	// 		tagClauses = append(tagClauses, fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", placeholder, placeholder))
-	// 	}
-	// 	andClauses = append(andClauses, "("+strings.Join(tagClauses, " AND ")+")")
-	// }
-
 	finalSQL := SearchGeneSql + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
 
-	//log.Debug().Msgf("query %s", query)
-	//log.Debug().Msgf("sql %s", finalSQL)
-	//log.Debug().Msgf("args %v", args)
-
-	db, err := sql.Open("sqlite3", cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
 
 	if err != nil {
 		return nil, err

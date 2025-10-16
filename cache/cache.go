@@ -6,8 +6,10 @@ import (
 	"github.com/antonybholmes/go-scrna"
 )
 
-var instance *scrna.DatasetsCache
-var once sync.Once
+var (
+	instance *scrna.DatasetsCache
+	once     sync.Once
+)
 
 func InitCache(dir string) (*scrna.DatasetsCache, error) {
 	once.Do(func() {
