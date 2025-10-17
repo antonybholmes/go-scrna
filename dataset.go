@@ -209,7 +209,7 @@ func (cache *DatasetCache) Gex(
 	defer db.Close()
 
 	ret := GexResults{
-		Dataset: cache.dataset.PublicId,
+		Dataset: ResultDataset{PublicId: cache.dataset.PublicId},
 		Genes:   make([]*GexGene, 0, len(genes)),
 	}
 
@@ -488,9 +488,16 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
 
 	where, err := sys.SqlBoolQuery(query, func(placeholder uint, matchType sys.MatchType) string {
-
+		// for slqlite
 		ph := fmt.Sprintf("?%d", placeholder)
 
+		// if matchType == sys.MatchTypeExact {
+		// 	return fmt.Sprintf("(gex.gene_symbol = %s OR gex.ensembl_id = %s)", ph, ph)
+		// } else {
+		// 	return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", ph, ph)
+		// }
+
+		// we use like even for exact matches to allow for case insensitivity
 		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", ph, ph)
 	})
 
@@ -499,6 +506,8 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 	}
 
 	finalSQL := SearchGeneSql + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
+
+	//log.Debug().Msgf("finalSQL %s", finalSQL)
 
 	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
 

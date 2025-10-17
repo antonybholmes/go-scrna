@@ -63,8 +63,8 @@ type (
 	}
 
 	ResultDataset struct {
-		PublicId string    `json:"publicId"`
-		Values   []float32 `json:"values"`
+		PublicId string `json:"publicId"`
+		//Values   []float32 `json:"values"`
 	}
 
 	GexResults struct {
@@ -74,8 +74,8 @@ type (
 		// the platform name and id
 
 		//Dataset *Dataset      `json:"dataset"`
-		Dataset string     `json:"dataset"`
-		Genes   []*GexGene `json:"genes"`
+		Dataset ResultDataset `json:"dataset"`
+		Genes   []*GexGene    `json:"genes"`
 	}
 
 	DatasetsCache struct {
