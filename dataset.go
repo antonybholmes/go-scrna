@@ -39,19 +39,19 @@ type (
 	// }
 
 	ClusterMetadata struct {
-		Id          uint   `json:"-"`
 		Name        string `json:"name"`
 		Value       string `json:"value"`
 		Description string `json:"description,omitempty"`
 		Color       string `json:"color,omitempty"`
+		Id          uint   `json:"-"`
 	}
 
 	Cluster struct {
-		Id        uint                        `json:"id"`
+		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
 		Color     string                      `json:"color"`
 		Name      string                      `json:"name"`
+		Id        uint                        `json:"id"`
 		CellCount uint                        `json:"cells"`
-		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
 	}
 
 	Pos struct {
@@ -60,13 +60,11 @@ type (
 	}
 
 	SingleCell struct {
-		Id      uint   `json:"-"`
 		Barcode string `json:"barcode"`
 		Sample  string `json:"sample"`
+		Id      uint   `json:"-"`
 		Cluster uint   `json:"clusterId"`
-		//UmapX   float32 `json:"umapX"`
-		//UmapY   float32 `json:"umapY"`
-		Pos Pos `json:"pos"`
+		Pos     Pos    `json:"pos"`
 	}
 
 	DatasetMetadata struct {
