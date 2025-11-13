@@ -7,8 +7,7 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20251112171528-41b7859942bb
-	github.com/rs/zerolog v1.34.0
+	github.com/antonybholmes/go-sys v0.0.0-20251113170509-8987daf9a00a
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
 
@@ -29,6 +28,8 @@ require (
 require (
 	github.com/mattn/go-colorable v0.1.14 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/rs/zerolog v1.34.0 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/sys v0.38.0 // indirect
+	gopkg.in/natefinch/lumberjack.v2 v2.2.1 // indirect
 )
