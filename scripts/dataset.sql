@@ -1,6 +1,5 @@
 CREATE TABLE dataset (
-	id INTEGER PRIMARY KEY ASC,
-	public_id TEXT NOT NULL UNIQUE,
+	id TEXT PRIMARY KEY ASC,
 	name TEXT NOT NULL, 
 	institution TEXT NOT NULL, 
 	species TEXT NOT NULL, 
@@ -13,22 +12,19 @@ CREATE TABLE dataset (
 
 
 CREATE TABLE samples (
-	id INTEGER PRIMARY KEY ASC,
-	public_id TEXT NOT NULL UNIQUE,
+	id TEXT PRIMARY KEY ASC,
 	name TEXT NOT NULL UNIQUE
 );
 
 CREATE TABLE metadata_types (
-	id INTEGER PRIMARY KEY ASC,
-	public_id TEXT NOT NULL UNIQUE,
+	id TEXT PRIMARY KEY ASC,
 	name TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	UNIQUE(name));
 
 CREATE TABLE metadata (
-	id INTEGER PRIMARY KEY ASC,
-	public_id TEXT NOT NULL UNIQUE,
-	metadata_type_id INTEGER NOT NULL,
+	id TEXT PRIMARY KEY ASC,
+	metadata_type_id TEXT NOT NULL,
 	value TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	color TEXT NOT NULL DEFAULT '',
@@ -36,20 +32,17 @@ CREATE TABLE metadata (
 	FOREIGN KEY(metadata_type_id) REFERENCES metadata_types(id));
 
 CREATE TABLE clusters (
-	id INTEGER PRIMARY KEY ASC,
-	public_id TEXT NOT NULL UNIQUE,
+	id TEXT PRIMARY KEY ASC,
 	name TEXT NOT NULL UNIQUE,
 	cell_count INTEGER NOT NULL,
 	color TEXT NOT NULL DEFAULT ''
 );
-
-CREATE INDEX clusters_public_id_idx ON clusters (public_id);
 CREATE INDEX clusters_name_idx ON clusters (name);
 
 CREATE TABLE cluster_metadata (
-	id INTEGER PRIMARY KEY ASC,
-	cluster_id INTEGER NOT NULL,
-	metadata_id INTEGER NOT NULL,
+	id TEXT PRIMARY KEY ASC,
+	cluster_id TEXT NOT NULL,
+	metadata_id TEXT NOT NULL,
 	UNIQUE(cluster_id, metadata_id),
 	FOREIGN KEY(cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY(metadata_id) REFERENCES metadata(id)  
@@ -61,8 +54,8 @@ CREATE TABLE cells (
 	barcode	TEXT NOT NULL, 
 	umap_x REAL NOT NULL, 
 	umap_y REAL NOT NULL, 
-	cluster_id INTEGER NOT NULL, 
-	sample_id INTEGER NOT NULL,
+	cluster_id TEXT NOT NULL, 
+	sample_id TEXT NOT NULL,
 	FOREIGN KEY (cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY (sample_id) REFERENCES samples(id)  
 );
@@ -73,7 +66,7 @@ CREATE INDEX cells_sample_id_idx ON cells (sample_id);
 
 
 CREATE TABLE gex (
-	id INTEGER PRIMARY KEY ASC,
+	id TEXT PRIMARY KEY ASC,
 	ensembl_id TEXT NOT NULL,
 	gene_symbol TEXT NOT NULL, 
 	file TEXT NOT NULL,

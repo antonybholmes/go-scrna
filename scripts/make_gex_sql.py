@@ -34,7 +34,7 @@ species = args.species
 assembly = args.assembly
 gex_dir = os.path.join(dir, "gex")
 
-public_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+ensembl_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
 
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0, index_col=0)
@@ -54,16 +54,18 @@ for c in df_clusters.index:
 
 print(counts)
 
-cluster_id_map = {c: i + 1 for i, c in enumerate(df_clusters.index)}
+cluster_id_map = {c: uuid.uuid7() for i, c in enumerate(df_clusters.index)}
 
 # df_clusters["Cells"] = counts
 
 metadata_types = list(sorted(df_clusters.columns[1:].values))
 
+metadata_type_map = {name: uuid.uuid7() for name in metadata_types}
+
 with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     print(
-        f"INSERT INTO dataset (public_id, name, institution, species, assembly, cells, dir) VALUES ('{public_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
+        f"INSERT INTO dataset (id, name, institution, species, assembly, cells, dir) VALUES ('{ensembl_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
         file=sqlf,
     )
 
@@ -71,22 +73,24 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
 
     sample_map = {}
     for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
-        public_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+        ensembl_id = (
+            uuid.uuid7()
+        )  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
         print(
-            f"INSERT INTO samples (public_id, name) VALUES ('{public_id}', '{sample}');",
+            f"INSERT INTO samples (id, name) VALUES ('{ensembl_id}', '{sample}');",
             file=sqlf,
         )
-        sample_map[sample] = i + 1
+        sample_map[sample] = ensembl_id  # i + 1
 
     print("COMMIT;", file=sqlf)
 
     print("BEGIN TRANSACTION;", file=sqlf)
 
     for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
-        public_id = uuid.uuid7()
+        ensembl_id = uuid.uuid7()
 
         print(
-            f"INSERT INTO clusters (public_id, name, cell_count, color) VALUES ('{public_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
+            f"INSERT INTO clusters (id, name, cell_count, color) VALUES ('{ensembl_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
             file=sqlf,
         )
 
@@ -95,9 +99,9 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
     print("BEGIN TRANSACTION;", file=sqlf)
 
     for name in metadata_types:
-        public_id = uuid.uuid7()
+        ensembl_id = metadata_type_map[name]  # uuid.uuid7()
         print(
-            f"INSERT INTO metadata_types (public_id, name) VALUES ('{public_id}', '{name}');",
+            f"INSERT INTO metadata_types (id, name) VALUES ('{ensembl_id}', '{name}');",
             file=sqlf,
         )
 
@@ -106,16 +110,16 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
     print("BEGIN TRANSACTION;", file=sqlf)
 
     metadata_map = collections.defaultdict(lambda: {})
-    index = 1
+
     for i, name in enumerate(metadata_types):
+        metadata_type_id = metadata_type_map[name]
         for v in sorted(df_clusters[name].unique()):
-            public_id = uuid.uuid7()
+            ensembl_id = uuid.uuid7()
             print(
-                f"INSERT INTO metadata (public_id, metadata_type_id, value) VALUES ('{public_id}', {i + 1}, '{v}');",
+                f"INSERT INTO metadata (id, metadata_type_id, name) VALUES ('{ensembl_id}', '{metadata_type_id}',  '{v}');",
                 file=sqlf,
             )
-            metadata_map[name][v] = index
-            index += 1
+            metadata_map[name][v] = ensembl_id  # index
 
     print("COMMIT;", file=sqlf)
 
@@ -124,13 +128,14 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
     print(metadata_map, metadata_types)
 
     for idx, (i, row) in enumerate(df_clusters.iterrows()):
+        cluster_id = cluster_id_map[row.name]
         for j, metadata_type in enumerate(metadata_types):
 
             metadata_value = row[j + 1]
             print(metadata_type, metadata_value)
             metadata_id = metadata_map[metadata_type][metadata_value]
             print(
-                f"INSERT INTO cluster_metadata (cluster_id, metadata_id) VALUES ({idx+1}, {metadata_id});",
+                f"INSERT INTO cluster_metadata (cluster_id, metadata_id) VALUES ('{cluster_id}', '{metadata_id}');",
                 file=sqlf,
             )
 
@@ -212,13 +217,14 @@ with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
                     record = next(unpacker)
 
                     # now we can get the id and gene symbol
-                    id = record["id"]
+                    id = uuid.uuid7()
+                    ensembl_id = record["id"]
                     gene_symbol = record["s"]
 
                     # log the offset and size in the db so we can search
                     # for a gene and then know where to find it in the file
                     print(
-                        f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{id}', '{gene_symbol}', '{f}', {seek}, {size});",
+                        f"INSERT INTO gex (id, ensembl_id, gene_symbol, file, offset, size) VALUES ('{id}', '{ensembl_id}', '{gene_symbol}', '{f}', {seek}, {size});",
                         file=sqlf,
                     )
 
