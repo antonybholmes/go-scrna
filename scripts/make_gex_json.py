@@ -120,8 +120,6 @@ for i, gene_symbol in enumerate(df_hugo["Approved symbol"].values):
     gene_ids.append(hugo)
 
 
-# public_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
-
 df_cells = pd.read_csv(args.cells, sep="\t", header=0)
 df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
 

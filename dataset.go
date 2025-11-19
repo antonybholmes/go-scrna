@@ -11,7 +11,7 @@ import (
 
 type (
 	Dataset struct {
-		PublicId    string `json:"publicId"`
+		Id          string `json:"id"`
 		Name        string `json:"name"`
 		Species     string `json:"species"`
 		Assembly    string `json:"assembly"`
@@ -19,14 +19,13 @@ type (
 		Institution string `json:"institution"`
 		Description string `json:"description"`
 		Cells       uint   `json:"cells"`
-		Id          uint   `json:"-"`
 	}
 
 	Gene struct {
+		Id         string `json:"id"`
 		Ensembl    string `json:"geneId"`
 		GeneSymbol string `json:"geneSymbol"`
 		File       string `json:"-"`
-		Id         uint   `json:"-"`
 		Offset     int64  `json:"-"`
 		Size       uint32 `json:"-"`
 	}
@@ -39,18 +38,18 @@ type (
 	// }
 
 	ClusterMetadata struct {
+		Id          string `json:"id"`
 		Name        string `json:"name"`
 		Value       string `json:"value"`
 		Description string `json:"description,omitempty"`
 		Color       string `json:"color,omitempty"`
-		Id          uint   `json:"-"`
 	}
 
 	Cluster struct {
+		Id        string                      `json:"id"`
 		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
 		Color     string                      `json:"color"`
 		Name      string                      `json:"name"`
-		Id        uint                        `json:"id"`
 		CellCount uint                        `json:"cells"`
 	}
 
@@ -60,15 +59,15 @@ type (
 	}
 
 	SingleCell struct {
+		Id      string `json:"id"`
+		Sample  string `json:"sampleId"`
+		Cluster string `json:"clusterId"`
 		Barcode string `json:"barcode"`
-		Sample  string `json:"sample"`
-		Id      uint   `json:"-"`
-		Cluster uint   `json:"clusterId"`
 		Pos     Pos    `json:"pos"`
 	}
 
 	DatasetMetadata struct {
-		PublicId string        `json:"publicId"`
+		Dataset  string        `json:"datasetId"`
 		Clusters []*Cluster    `json:"clusters"`
 		Cells    []*SingleCell `json:"cells"`
 	}
@@ -111,33 +110,33 @@ const (
 		ORDER by cluster_metadata.cluster_id, metadata_types.id, metadata.id`
 
 	CellsSql = `SELECT 
-	cells.id,
-	cells.barcode,
-	cells.umap_x,
-	cells.umap_y,
-	cells.cluster_id,
-	samples.name
-	FROM cells
-	JOIN samples ON cells.sample_id = samples.id
-	ORDER BY cells.id`
+		cells.id,
+		cells.barcode,
+		cells.umap_x,
+		cells.umap_y,
+		cells.cluster_id,
+		samples.name
+		FROM cells
+		JOIN samples ON cells.sample_id = samples.id
+		ORDER BY cells.id`
 
 	GenesSql = `SELECT 
-	gex.id, 
-	gex.ensembl_id,
-	gex.gene_symbol 
-	FROM gex
-	ORDER BY gex.gene_symbol`
+		gex.id, 
+		gex.ensembl_id,
+		gex.gene_symbol 
+		FROM gex
+		ORDER BY gex.gene_symbol`
 
 	FindGeneSql = `SELECT 
-	gex.id, 
-	gex.ensembl_id,
-	gex.gene_symbol,
-	gex.file,
-	gex.offset,
-	gex.size
-	FROM gex
-	WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
-	LIMIT 1`
+		gex.id, 
+		gex.ensembl_id,
+		gex.gene_symbol,
+		gex.file,
+		gex.offset,
+		gex.size
+		FROM gex
+		WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
+		LIMIT 1`
 
 	SearchGeneSql = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 )
@@ -146,9 +145,9 @@ func NewDatasetCache(dataset *Dataset) *DatasetCache {
 	return &DatasetCache{dataset: dataset}
 }
 
-func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
+func (dc *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 
-	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -182,18 +181,18 @@ func (cache *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (cache *DatasetCache) Gex(
+func (dc *DatasetCache) Gex(
 	geneIds []string) (*GexResults, error) {
 
-	genes, err := cache.FindGenes(geneIds)
+	genes, err := dc.FindGenes(geneIds)
 
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
 
-	datasetUrl := filepath.Dir(cache.dataset.Url)
+	datasetUrl := filepath.Dir(dc.dataset.Url)
 
 	// where the gex data is located
 	gexUrl := filepath.Join(datasetUrl, "gex")
@@ -207,7 +206,7 @@ func (cache *DatasetCache) Gex(
 	defer db.Close()
 
 	ret := GexResults{
-		Dataset: ResultDataset{PublicId: cache.dataset.PublicId},
+		Dataset: ResultDataset{Id: dc.dataset.Id},
 		Genes:   make([]*GexGene, 0, len(genes)),
 	}
 
@@ -333,19 +332,17 @@ func (cache *DatasetCache) Gex(
 // 	}, nil
 // }
 
-func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
+func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open(sys.Sqlite3DB, dataset.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
 
 	if err != nil {
 		return nil, err
 	}
 
 	defer db.Close()
-
-	clusters := make([]*Cluster, 0, 50)
 
 	rows, err := db.Query(ClustersSql)
 
@@ -354,6 +351,9 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 	}
 
 	defer rows.Close()
+
+	clusters := make([]*Cluster, 0, 50)
+	clusterMap := make(map[string]*Cluster)
 
 	for rows.Next() {
 		var cluster Cluster
@@ -371,11 +371,12 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 		cluster.Metadata = make(map[string]*ClusterMetadata, 5)
 
 		clusters = append(clusters, &cluster)
+		clusterMap[cluster.Id] = &cluster
 	}
 
 	// add metadata to clusters
 
-	var clusterId uint
+	var clusterId string
 
 	rows, err = db.Query(ClusterMetadataSQL)
 
@@ -384,6 +385,8 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 	}
 
 	defer rows.Close()
+
+	log.Debug().Msgf("Dataset cluster s: %d", len(clusters))
 
 	for rows.Next() {
 		var md = ClusterMetadata{}
@@ -394,9 +397,11 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 			return nil, err
 		}
 
-		index := clusterId - 1
+		//index := clusterId - 1
 
-		clusters[index].Metadata[md.Name] = &md
+		log.Debug().Msgf("Adding metadata to cluster: %s %s", clusterId, md.Name)
+
+		clusterMap[clusterId].Metadata[md.Name] = &md
 	}
 
 	var cellCount uint
@@ -436,17 +441,17 @@ func (dataset *DatasetCache) Metadata() (*DatasetMetadata, error) {
 	}
 
 	return &DatasetMetadata{
-		PublicId: dataset.dataset.PublicId,
+		Dataset:  dc.dataset.Id,
 		Clusters: clusters,
 		Cells:    cells,
 	}, nil
 }
 
-func (cache *DatasetCache) Genes() ([]*Gene, error) {
+func (dc *DatasetCache) Genes() ([]*Gene, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
 
 	if err != nil {
 		return nil, err
@@ -483,7 +488,7 @@ func (cache *DatasetCache) Genes() ([]*Gene, error) {
 	return ret, nil
 }
 
-func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
+func (dc *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
 
 	where, err := sys.SqlBoolQuery(query, func(placeholder uint, matchType sys.MatchType) string {
 		// for slqlite
@@ -507,7 +512,7 @@ func (cache *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, err
 
 	//log.Debug().Msgf("finalSQL %s", finalSQL)
 
-	db, err := sql.Open(sys.Sqlite3DB, cache.dataset.Url)
+	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
 
 	if err != nil {
 		return nil, err

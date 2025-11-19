@@ -39,24 +39,24 @@ func Datasets(species string, assembly string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, assembly)
 }
 
-func Gex(publicId string, geneIds []string) (*scrna.GexResults, error) {
-	return instance.Gex(publicId, geneIds)
+func Gex(id string, geneIds []string) (*scrna.GexResults, error) {
+	return instance.Gex(id, geneIds)
 }
 
-// func Clusters(publicId string) (*scrna.DatasetClusters, error) {
-// 	return instance.Clusters(publicId)
+// func Clusters(id string) (*scrna.DatasetClusters, error) {
+// 	return instance.Clusters(id)
 // }
 
-func Metadata(publicId string) (*scrna.DatasetMetadata, error) {
-	return instance.Metadata(publicId)
+func Metadata(id string) (*scrna.DatasetMetadata, error) {
+	return instance.Metadata(id)
 }
 
-func Genes(publicId string) ([]*scrna.Gene, error) {
-	return instance.Genes(publicId)
+func Genes(id string) ([]*scrna.Gene, error) {
+	return instance.Genes(id)
 }
 
-func SearchGenes(publicId string, query string, limit uint16) ([]*scrna.Gene, error) {
-	return instance.SearchGenes(publicId, query, limit)
+func SearchGenes(id string, query string, limit uint16) ([]*scrna.Gene, error) {
+	return instance.SearchGenes(id, query, limit)
 }
 
 //

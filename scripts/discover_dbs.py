@@ -46,7 +46,7 @@ for root, dirs, files in os.walk(dir):
 
             # Execute a query to fetch data
             cursor.execute(
-                "SELECT public_id, name, institution, species, assembly, description FROM dataset"
+                "SELECT id, name, institution, species, assembly, description FROM dataset"
             )
 
             # Fetch all results
@@ -70,7 +70,7 @@ with open(os.path.join(dir, "scrna.sql"), "w") as f:
     for row in data:
         values = ", ".join([f"'{v}'" for v in row])
         print(
-            f"INSERT INTO datasets (public_id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
+            f"INSERT INTO datasets (id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
             file=f,
         )
 

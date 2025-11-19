@@ -13,7 +13,9 @@ CREATE TABLE dataset (
 
 CREATE TABLE samples (
 	id TEXT PRIMARY KEY ASC,
-	name TEXT NOT NULL UNIQUE
+	dataset_id TEXT NOT NULL,
+	name TEXT NOT NULL UNIQUE,
+	FOREIGN KEY(dataset_id) REFERENCES dataset(id)
 );
 
 CREATE TABLE metadata_types (
@@ -50,12 +52,12 @@ CREATE TABLE cluster_metadata (
 
 
 CREATE TABLE cells (
-	id INTEGER PRIMARY KEY ASC,
+	id TEXT PRIMARY KEY ASC,
+	cluster_id TEXT NOT NULL, 
+	sample_id TEXT NOT NULL,
 	barcode	TEXT NOT NULL, 
 	umap_x REAL NOT NULL, 
 	umap_y REAL NOT NULL, 
-	cluster_id TEXT NOT NULL, 
-	sample_id TEXT NOT NULL,
 	FOREIGN KEY (cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY (sample_id) REFERENCES samples(id)  
 );

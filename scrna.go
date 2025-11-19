@@ -9,8 +9,8 @@ import (
 
 type (
 	Idtype struct {
+		Id   string `json:"id"`
 		Name string `json:"name"`
-		Id   int    `json:"id"`
 	}
 
 	NameValueType struct {
@@ -29,11 +29,10 @@ type (
 	//)
 
 	Sample struct {
-		PublicId string          `json:"publicId"`
+		Id       string          `json:"id"`
 		Name     string          `json:"name"`
 		AltNames []string        `json:"altNames"`
 		Metadata []NameValueType `json:"metadata"`
-		Id       int             `json:"-"`
 	}
 
 	//  RNASeqGex struct {
@@ -54,7 +53,7 @@ type (
 
 	ResultSample struct {
 		//Dataset int     `json:"dataset"`
-		Id int `json:"id"`
+		Id string `json:"id"`
 		//Gene    int     `json:"gene"`
 		//Counts int     `json:"counts"`
 		////TPM    float32 `json:"tpm"`
@@ -63,7 +62,7 @@ type (
 	}
 
 	ResultDataset struct {
-		PublicId string `json:"publicId"`
+		Id string `json:"id"`
 		//Values   []float32 `json:"values"`
 	}
 
@@ -89,20 +88,20 @@ const (
 	DatasetSize = 500
 
 	SpeciesSQL = `SELECT DISTINCT
-	species,
-	FROM datasets
-	ORDER BY species`
+		species,
+		FROM datasets
+		ORDER BY species`
 
 	AssembliesSql = `SELECT
-	datasets.assembly
-	FROM datasets
-	WHERE datasets.species = ?1 
-	ORDER BY datasets.assembly`
+		datasets.assembly
+		FROM datasets
+		WHERE datasets.species = ?1 
+		ORDER BY datasets.assembly`
 
 	AllTechnologiesSql = `SELECT DISTINCT
-	species, technology, platform 
-	FROM datasets 
-	ORDER BY species, technology, platform`
+		species, technology, platform 
+		FROM datasets 
+		ORDER BY species, technology, platform`
 
 	// const ALL_VALUE_TYPES_SQL = `SELECT
 	// 	gex_value_types.id,
@@ -118,31 +117,29 @@ const (
 	// 	ORDER BY gex_value_types.id`
 
 	DatasetsSql = `SELECT 
-	datasets.id,
-	datasets.public_id,
-	datasets.name,
-	datasets.institution,
-	datasets.species,
-	datasets.assembly,
-	datasets.cells,
-	datasets.url,
-	datasets.description
-	FROM datasets 
-	WHERE datasets.species = ?1 AND datasets.assembly = ?2
-	ORDER BY datasets.name`
+		datasets.id,
+		datasets.name,
+		datasets.institution,
+		datasets.species,
+		datasets.assembly,
+		datasets.cells,
+		datasets.url,
+		datasets.description
+		FROM datasets 
+		WHERE datasets.species = ?1 AND datasets.assembly = ?2
+		ORDER BY datasets.name`
 
 	DatasetSql = `SELECT 
-	datasets.id,
-	datasets.public_id,
-	datasets.name,
-	datasets.institution,
-	datasets.species,
-	datasets.assembly,
-	datasets.cells,
-	datasets.url,
-	datasets.description
-	FROM datasets 
-	WHERE datasets.public_id = ?1`
+		datasets.id,
+		datasets.name,
+		datasets.institution,
+		datasets.species,
+		datasets.assembly,
+		datasets.cells,
+		datasets.url,
+		datasets.description
+		FROM datasets 
+		WHERE datasets.id = ?1`
 )
 
 // const DATASETS_SQL = `SELECT
@@ -293,7 +290,6 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 
 		err := datasetRows.Scan(
 			&dataset.Id,
-			&dataset.PublicId,
 			&dataset.Name,
 			&dataset.Institution,
 			&dataset.Species,
@@ -328,7 +324,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 	return datasets, nil
 }
 
-func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
+func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
 	db, err := sql.Open("sqlite3", cache.path)
 
 	if err != nil {
@@ -339,9 +335,8 @@ func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 
 	var dataset Dataset
 
-	err = db.QueryRow(DatasetSql, publicId).Scan(
+	err = db.QueryRow(DatasetSql, id).Scan(
 		&dataset.Id,
-		&dataset.PublicId,
 		&dataset.Name,
 		&dataset.Institution,
 		&dataset.Species,
@@ -357,10 +352,10 @@ func (cache *DatasetsCache) dataset(publicId string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) Gex(publicId string,
+func (cache *DatasetsCache) Gex(id string,
 	geneIds []string) (*GexResults, error) {
 
-	dataset, err := cache.dataset(publicId)
+	dataset, err := cache.dataset(id)
 
 	if err != nil {
 		return nil, err
@@ -396,28 +391,31 @@ func (cache *DatasetsCache) Gex(publicId string,
 // 	return ret, nil
 // }
 
-func (cache *DatasetsCache) Metadata(publicId string) (*DatasetMetadata, error) {
+func (cache *DatasetsCache) Metadata(id string) (*DatasetMetadata, error) {
 
-	dataset, err := cache.dataset(publicId)
+	dataset, err := cache.dataset(id)
 
 	if err != nil {
 		return nil, err
 	}
+
+	log.Debug().Msgf("Dataset id: %s", dataset.Id)
 
 	datasetCache := NewDatasetCache(dataset)
 
 	ret, err := datasetCache.Metadata()
 
 	if err != nil {
+		log.Error().Msgf("metadata %s", err)
 		return nil, err
 	}
 
 	return ret, nil
 }
 
-func (cache *DatasetsCache) Genes(publicId string) ([]*Gene, error) {
+func (cache *DatasetsCache) Genes(id string) ([]*Gene, error) {
 
-	dataset, err := cache.dataset(publicId)
+	dataset, err := cache.dataset(id)
 
 	if err != nil {
 		return nil, err
