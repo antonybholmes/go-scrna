@@ -18,7 +18,7 @@ type (
 		Url         string `json:"-"`
 		Institution string `json:"institution"`
 		Description string `json:"description"`
-		Cells       uint   `json:"cells"`
+		Cells       int    `json:"cells"`
 	}
 
 	Gene struct {
@@ -27,7 +27,7 @@ type (
 		GeneSymbol string `json:"geneSymbol"`
 		File       string `json:"-"`
 		Offset     int64  `json:"-"`
-		Size       uint32 `json:"-"`
+		Size       int32  `json:"-"`
 	}
 
 	// More human readable for output
@@ -50,7 +50,7 @@ type (
 		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
 		Color     string                      `json:"color"`
 		Name      string                      `json:"name"`
-		CellCount uint                        `json:"cells"`
+		CellCount int                         `json:"cells"`
 	}
 
 	Pos struct {
@@ -271,7 +271,7 @@ func (dc *DatasetCache) Gex(
 		// for _, gex := range gexGeneData.Data {
 		// 	// data is sparse consisting of index, value pairs
 		// 	// which we use to fill in the array
-		// 	//i := uint32(gex[0])
+		// 	//i := int32(gex[0])
 		// 	//values[i] = gex[1]
 		// 	//values[i] = gex
 		// 	values = append(values, gex)
@@ -404,7 +404,7 @@ func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 		clusterMap[clusterId].Metadata[md.Name] = &md
 	}
 
-	var cellCount uint
+	var cellCount int
 
 	err = db.QueryRow(CellCountSql).Scan(&cellCount)
 
@@ -488,9 +488,9 @@ func (dc *DatasetCache) Genes() ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dc *DatasetCache) SearchGenes(query string, limit uint16) ([]*Gene, error) {
+func (dc *DatasetCache) SearchGenes(query string, limit int16) ([]*Gene, error) {
 
-	where, err := sys.SqlBoolQuery(query, func(placeholder uint, matchType sys.MatchType) string {
+	where, err := sys.SqlBoolQuery(query, func(placeholder int, matchType sys.MatchType) string {
 		// for slqlite
 		ph := fmt.Sprintf("?%d", placeholder)
 

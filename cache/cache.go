@@ -55,7 +55,7 @@ func Genes(id string) ([]*scrna.Gene, error) {
 	return instance.Genes(id)
 }
 
-func SearchGenes(id string, query string, limit uint16) ([]*scrna.Gene, error) {
+func SearchGenes(id string, query string, limit int16) ([]*scrna.Gene, error) {
 	return instance.SearchGenes(id, query, limit)
 }
 

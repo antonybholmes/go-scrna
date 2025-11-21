@@ -432,7 +432,7 @@ func (cache *DatasetsCache) Genes(id string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (cache *DatasetsCache) SearchGenes(publicId string, query string, limit uint16) ([]*Gene, error) {
+func (cache *DatasetsCache) SearchGenes(publicId string, query string, limit int16) ([]*Gene, error) {
 
 	dataset, err := cache.dataset(publicId)
 

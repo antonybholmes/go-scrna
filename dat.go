@@ -34,13 +34,13 @@ func ReadGexGeneFromDat(file string, index int) (*GexGene, error) {
 	// Read offset table (256 uint32s = 1024 bytes)
 	// skip magic   + version + num cells = 4 + 4 + 4 = 12 bytes
 	f.Seek(12, 0) // Skip the magic byte, version, and num cells
-	var numEntries uint32
+	var numEntries int32
 	err = binary.Read(f, binary.LittleEndian, &numEntries)
 	if err != nil {
 		return nil, err
 	}
 
-	offsets := make([]uint32, numEntries*2)
+	offsets := make([]int32, numEntries*2)
 	err = binary.Read(f, binary.LittleEndian, &offsets)
 	if err != nil {
 		return nil, err
@@ -62,7 +62,7 @@ func ReadGexGeneFromDat(file string, index int) (*GexGene, error) {
 
 }
 
-func SeekGexGeneFromDat(file string, seek int64, size uint32) (*GexGene, error) {
+func SeekGexGeneFromDat(file string, seek int64, size int32) (*GexGene, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -74,7 +74,7 @@ func SeekGexGeneFromDat(file string, seek int64, size uint32) (*GexGene, error) 
 	return _seekGexGeneFromDat(f, seek, size)
 }
 
-func _seekGexGeneFromDat(f *os.File, seek int64, size uint32) (*GexGene, error) {
+func _seekGexGeneFromDat(f *os.File, seek int64, size int32) (*GexGene, error) {
 
 	// Read offset table (256 uint32s = 1024 bytes)
 	_, err := f.Seek(seek, 0) // Skip the magic byte
