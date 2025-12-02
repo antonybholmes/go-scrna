@@ -91,7 +91,7 @@ func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 
 	// values
 	// skip reading number of values since decode will handle that
-	//numValues := int(binary.LittleEndian.Uint32(buf[cur:]))
+	//size := int(binary.LittleEndian.Uint32(buf[cur:]))
 	cur += 4
 
 	// Interpret remaining bytes as float32 slice
@@ -101,7 +101,7 @@ func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 
 	// each entry is [cellIndex, expressionValue] so num is even and half
 	// the number of entries
-	values, err := DecodeFloat32Pairs(buf, cur)
+	values, err := decodeFloat32Pairs(buf, cur)
 
 	if err != nil {
 		return nil, err
@@ -113,23 +113,29 @@ func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 
 }
 
-func DecodeFloat32Pairs(buf []byte, offset int) ([][2]float32, error) {
-	buf = buf[offset:] // start at the correct position
+func decodeFloat32Pairs(buf []byte, offset int) ([][2]float32, error) {
+	//log.Debug().Msgf("Decoding float32 pairs: offset=%d size=%d bufLen=%d", offset, size, len(buf))
+
+	buf = buf[offset:] // : offset+size] // start at the correct position
+
+	//log.Debug().Msgf("len(buf)=%d", len(buf))
 
 	if len(buf)%8 != 0 {
 		return nil, fmt.Errorf("buffer length must be multiple of 8 bytes")
 	}
 
+	// each entry is 2 float32 values (8 bytes) so number of pairs is size / 2
+	// where size is in number of float32 values in the buffer
 	numPairs := len(buf) / 8 // each pair is 8 bytes (2x4byte float32)
 	result := make([][2]float32, numPairs)
 
 	off := 0
 	for i := range numPairs {
-		bits0 := binary.LittleEndian.Uint32(buf[off:])
-		bits1 := binary.LittleEndian.Uint32(buf[off+4:])
+		indexBits := binary.LittleEndian.Uint32(buf[off:])
+		expBits := binary.LittleEndian.Uint32(buf[off+4:])
 		result[i] = [2]float32{
-			math.Float32frombits(bits0),
-			math.Float32frombits(bits1),
+			math.Float32frombits(indexBits),
+			math.Float32frombits(expBits),
 		}
 
 		off += 8
