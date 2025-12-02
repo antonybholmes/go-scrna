@@ -4,6 +4,7 @@ import (
 	"sync"
 
 	"github.com/antonybholmes/go-scrna"
+	"github.com/antonybholmes/go-scrna/dat"
 )
 
 var (
@@ -39,7 +40,7 @@ func Datasets(species string, assembly string) ([]*scrna.Dataset, error) {
 	return instance.Datasets(species, assembly)
 }
 
-func Gex(id string, geneIds []string) (*scrna.GexResults, error) {
+func Gex(id string, geneIds []string) (*dat.GexResults, error) {
 	return instance.Gex(id, geneIds)
 }
 

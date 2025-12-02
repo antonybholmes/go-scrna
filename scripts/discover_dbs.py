@@ -65,13 +65,63 @@ for root, dirs, files in os.walk(dir):
 
             conn.close()
 
-with open(os.path.join(dir, "scrna.sql"), "w") as f:
-    print("BEGIN TRANSACTION;", file=f)
-    for row in data:
-        values = ", ".join([f"'{v}'" for v in row])
-        print(
-            f"INSERT INTO datasets (id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
-            file=f,
-        )
 
-    print("COMMIT;", file=f)
+db = os.path.join(dir, "datasets.db")
+
+
+if os.path.exists(db):
+    os.remove(db)
+
+conn = sqlite3.connect(db)
+cursor = conn.cursor()
+
+cursor.execute("PRAGMA journal_mode = WAL;")
+cursor.execute("PRAGMA foreign_keys = ON;")
+
+cursor.execute("BEGIN TRANSACTION;")
+
+cursor.execute(
+    f""" CREATE TABLE datasets (
+	id TEXT PRIMARY KEY ASC,
+	name TEXT NOT NULL,
+	institution TEXT NOT NULL,
+	species TEXT NOT NULL,
+	assembly TEXT NOT NULL,
+	cells INTEGER NOT NULL,
+	url TEXT NOT NULL,
+	description TEXT NOT NULL DEFAULT '',
+	tags TEXT NOT NULL DEFAULT '');
+"""
+)
+
+cursor.execute("COMMIT;")
+
+cursor.execute("BEGIN TRANSACTION;")
+
+for row in data:
+    values = ", ".join([f"'{v}'" for v in row])
+    cursor.execute(
+        f"INSERT INTO datasets (id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
+    )
+
+cursor.execute("COMMIT;")
+
+
+cursor.execute("BEGIN TRANSACTION;")
+
+cursor.execute(
+    f""" CREATE INDEX datasets_name_idx ON datasets (name);
+"""
+)
+
+cursor.execute(
+    f""" CREATE INDEX datasets_institution_idx ON datasets (institution);
+"""
+)
+
+cursor.execute(
+    f""" CREATE INDEX datasets_species_idx ON datasets (species, assembly);
+"""
+)
+
+cursor.execute("COMMIT;")

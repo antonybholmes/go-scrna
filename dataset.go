@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/antonybholmes/go-scrna/dat"
+	v2 "github.com/antonybholmes/go-scrna/dat/v2"
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 )
@@ -182,7 +184,7 @@ func (dc *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 }
 
 func (dc *DatasetCache) Gex(
-	geneIds []string) (*GexResults, error) {
+	geneIds []string) (*dat.GexResults, error) {
 
 	genes, err := dc.FindGenes(geneIds)
 
@@ -205,12 +207,12 @@ func (dc *DatasetCache) Gex(
 
 	defer db.Close()
 
-	ret := GexResults{
-		Dataset: ResultDataset{Id: dc.dataset.Id},
-		Genes:   make([]*GexGene, 0, len(genes)),
+	ret := dat.GexResults{
+		Dataset: dat.ResultDataset{Id: dc.dataset.Id},
+		Genes:   make([]*dat.GexGene, 0, len(genes)),
 	}
 
-	var gexCache = make(map[string]*GexGene)
+	var gexCache = make(map[string]*dat.GexGene)
 
 	for _, gene := range genes {
 		gexFile := filepath.Join(gexUrl, gene.File)
@@ -225,7 +227,7 @@ func (dc *DatasetCache) Gex(
 			// }
 			// defer f.Close()
 
-			data, err := SeekGexGeneFromDat(gexFile, gene.Offset, gene.Size)
+			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
 
 			if err != nil {
 				return nil, err

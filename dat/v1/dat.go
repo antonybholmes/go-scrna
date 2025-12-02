@@ -1,4 +1,4 @@
-package scrna
+package v1
 
 import (
 	"encoding/binary"
@@ -6,25 +6,11 @@ import (
 	"io"
 	"os"
 
+	"github.com/antonybholmes/go-scrna/dat"
 	"github.com/vmihailenco/msgpack/v5"
 )
 
-type (
-	// Used only for reading data
-	GexGene struct {
-		GeneId     string `json:"geneId" msgpack:"id"`
-		GeneSymbol string `json:"geneSymbol" msgpack:"s"`
-		// msgpack forced encoding of 32bit floats as that
-		// is sufficient precision for gene expression data
-		// Each entry is [cellIndex, expressionValue] to save space
-		// since we only record non-zero values
-		// Cell index is uint32 but we store as float32 for msgpack
-		// compatibility
-		Data [][2]float32 `json:"gex" msgpack:"d"`
-	}
-)
-
-func ReadGexGeneFromDat(file string, index int) (*GexGene, error) {
+func ReadGexGeneFromDat(file string, index int) (*dat.GexGene, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -62,7 +48,7 @@ func ReadGexGeneFromDat(file string, index int) (*GexGene, error) {
 
 }
 
-func SeekGexGeneFromDat(file string, seek int64, size int32) (*GexGene, error) {
+func SeekGexGeneFromDat(file string, seek int64, size int32) (*dat.GexGene, error) {
 	f, err := os.Open(file)
 	if err != nil {
 		return nil, err
@@ -74,7 +60,7 @@ func SeekGexGeneFromDat(file string, seek int64, size int32) (*GexGene, error) {
 	return _seekGexGeneFromDat(f, seek, size)
 }
 
-func _seekGexGeneFromDat(f *os.File, seek int64, size int32) (*GexGene, error) {
+func _seekGexGeneFromDat(f *os.File, seek int64, size int32) (*dat.GexGene, error) {
 
 	// Read offset table (256 uint32s = 1024 bytes)
 	_, err := f.Seek(seek, 0) // Skip the magic byte
@@ -94,7 +80,7 @@ func _seekGexGeneFromDat(f *os.File, seek int64, size int32) (*GexGene, error) {
 	// Use MessagePack decoder from current position
 	//dec := msgpack.NewDecoder(f)
 
-	var record GexGene
+	var record dat.GexGene
 
 	//err := dec.Decode(&record)
 

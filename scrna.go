@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"path/filepath"
 
+	"github.com/antonybholmes/go-scrna/dat"
+	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 )
 
@@ -61,22 +63,6 @@ type (
 		Value float32 `json:"value"`
 	}
 
-	ResultDataset struct {
-		Id string `json:"id"`
-		//Values   []float32 `json:"values"`
-	}
-
-	GexResults struct {
-		// we use the simpler value type for platform in search
-		// results so that the value types are not repeated in
-		// each search. The useful info in a search is just
-		// the platform name and id
-
-		//Dataset *Dataset      `json:"dataset"`
-		Dataset ResultDataset `json:"dataset"`
-		Genes   []*GexGene    `json:"genes"`
-	}
-
 	DatasetsCache struct {
 		dir  string
 		path string
@@ -95,7 +81,7 @@ const (
 	AssembliesSql = `SELECT
 		datasets.assembly
 		FROM datasets
-		WHERE datasets.species = ?1 
+		WHERE datasets.species = :species
 		ORDER BY datasets.assembly`
 
 	AllTechnologiesSql = `SELECT DISTINCT
@@ -126,7 +112,7 @@ const (
 		datasets.url,
 		datasets.description
 		FROM datasets 
-		WHERE datasets.species = ?1 AND datasets.assembly = ?2
+		WHERE datasets.species = :species AND datasets.assembly = :assembly
 		ORDER BY datasets.name`
 
 	DatasetSql = `SELECT 
@@ -139,7 +125,7 @@ const (
 		datasets.url,
 		datasets.description
 		FROM datasets 
-		WHERE datasets.id = ?1`
+		WHERE datasets.id = :id`
 )
 
 // const DATASETS_SQL = `SELECT
@@ -151,7 +137,7 @@ const (
 
 func NewDatasetsCache(dir string) *DatasetsCache {
 
-	path := filepath.Join(dir, "scrna.db")
+	path := filepath.Join(dir, "datasets.db")
 
 	// db, err := sql.Open("sqlite3", path)
 
@@ -193,7 +179,7 @@ func (cache *DatasetsCache) Dir() string {
 // }
 
 func (cache *DatasetsCache) Species() ([]string, error) {
-	db, err := sql.Open("sqlite3", cache.path)
+	db, err := sql.Open(sys.Sqlite3DB, cache.path)
 
 	if err != nil {
 		return nil, err
@@ -228,7 +214,7 @@ func (cache *DatasetsCache) Species() ([]string, error) {
 }
 
 func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
-	db, err := sql.Open("sqlite3", cache.path)
+	db, err := sql.Open(sys.Sqlite3DB, cache.path)
 
 	if err != nil {
 		return nil, err
@@ -238,7 +224,7 @@ func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
 
 	assemblies := make([]string, 0, 10)
 
-	rows, err := db.Query(AssembliesSql, species)
+	rows, err := db.Query(AssembliesSql, sql.Named("species", species))
 
 	if err != nil {
 		return nil, err
@@ -264,7 +250,7 @@ func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
 
 func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Dataset, error) {
 
-	db, err := sql.Open("sqlite3", cache.path)
+	db, err := sql.Open(sys.Sqlite3DB, cache.path)
 
 	if err != nil {
 		return nil, err
@@ -276,7 +262,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 
 	log.Debug().Msgf("%s %s", species, assembly)
 
-	datasetRows, err := db.Query(DatasetsSql, species, assembly)
+	datasetRows, err := db.Query(DatasetsSql, sql.Named("species", species), sql.Named("assembly", assembly))
 
 	if err != nil {
 		log.Debug().Msgf("%s", err)
@@ -325,7 +311,7 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 }
 
 func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
-	db, err := sql.Open("sqlite3", cache.path)
+	db, err := sql.Open(sys.Sqlite3DB, cache.path)
 
 	if err != nil {
 		return nil, err
@@ -335,7 +321,7 @@ func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
 
 	var dataset Dataset
 
-	err = db.QueryRow(DatasetSql, id).Scan(
+	err = db.QueryRow(DatasetSql, sql.Named("id", id)).Scan(
 		&dataset.Id,
 		&dataset.Name,
 		&dataset.Institution,
@@ -353,7 +339,7 @@ func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
 }
 
 func (cache *DatasetsCache) Gex(id string,
-	geneIds []string) (*GexResults, error) {
+	geneIds []string) (*dat.GexResults, error) {
 
 	dataset, err := cache.dataset(id)
 

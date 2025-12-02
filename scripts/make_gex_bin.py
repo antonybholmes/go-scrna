@@ -14,17 +14,17 @@ import struct
 VERSION = 1
 
 
-def write_entries(cells, block: int, offsets: list[tuple[int, int]], buffer: bytes):
-    fout = path.join(dir, f"gex_{block}.dat")
+def write_entries(block: int, genes: int, buffer: bytes):
+    fout = path.join(dir, f"gex_{block}.bin")
 
     with open(fout, "wb") as f:
         f.write(struct.pack("<I", 42))  # magic
         f.write(struct.pack("<I", VERSION))  # version
-        f.write(struct.pack("<I", cells))  # size
-        f.write(struct.pack("<I", len(offsets)))  # number of entries
-        for offset in offsets:
-            f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
-            f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
+        f.write(struct.pack("<I", genes))  # number of records
+        # f.write(struct.pack("<I", len(offsets)))  # number of entries
+        # for offset in offsets:
+        #    f.write(struct.pack("<I", offset[0]))  # 4 bytes each offset
+        #    f.write(struct.pack("<I", offset[1]))  # 4 bytes each size
         f.write(buffer)
 
 
@@ -152,10 +152,8 @@ cells = df_cells.shape[0]
 print("Cells", cells)
 
 
-genes = []
-
-offsets = []
-buffer = b""
+genes = 0
+buf = bytearray()
 
 for line in f:
     tokens = line.decode().strip().split("\t")
@@ -210,8 +208,8 @@ for line in f:
 
     # if idx.size < data.size:
     #    print("reject, not enough cells", idx.size, data.size)
-
-    sparse_data = [[int(i), float(data[i])] for i in idx]
+    pairs = [[float(i), float(data[i])] for i in idx]
+    values = [x for pair in pairs for x in pair]
 
     # if len(idx) < 20:
     # print("reject, not enough cells", g)
@@ -229,7 +227,31 @@ for line in f:
     # flatten
     # sparse_data = [item for sublist in sparse_data for item in sublist]
 
-    out = {"id": ensembl, "s": symbol, "d": sparse_data}
+    gene_id_bytes = ensembl.encode("utf-8")
+    gene_symbol_bytes = symbol.encode("utf-8")
+    num_values = len(values)
+    total_length = (
+        2 + len(gene_id_bytes) + 2 + len(gene_symbol_bytes) + 4 + num_values * 4
+    )
+
+    # print(total_length)
+    # sys.exit(0)
+
+    buf += struct.pack("<I", total_length)
+
+    # Gene ID
+    buf += struct.pack("<H", len(gene_id_bytes))
+    buf += gene_id_bytes
+
+    # Gene symbol
+    buf += struct.pack("<H", len(gene_symbol_bytes))
+    buf += gene_symbol_bytes
+
+    # Number of float values
+    buf += struct.pack("<I", num_values)
+
+    # Float values
+    buf += struct.pack("<" + "f" * len(values), *values)  # values.tobytes()
 
     # if out["s"] == "AHR":
     #     print("AHR", out)
@@ -240,22 +262,23 @@ for line in f:
     #     df = pd.DataFrame(sparse_data, columns=["Cell", "Exp"])
     #     df.to_csv("AHR.tsv", sep="\t", index=False)
 
-    genes.append(out)
-
-    encoded = msgpack.packb(out, use_single_float=True)
-
-    offsets.append([len(buffer), len(encoded)])
-    buffer += encoded
+    genes += 1
 
     # bunch genes into blocks of 4096 genes
-    if len(genes) == block_size:
+    if genes == block_size:
         # fout = path.join(dir, f"gex_{block}.json.gz")
         # with gzip.open(fout, "wt", encoding="utf-8") as f:
         #     json.dump(genes, f)
 
-        print(f"block {block} with {len(genes)} genes")
+        print(f"block {block} with {genes} genes")
 
-        write_entries(cells, block, offsets, buffer)
+        size = struct.unpack_from("<I", buf, 0)[0]
+
+        print("First gene size in block:", size)
+
+        # sys.exit(0)
+
+        write_entries(block, genes, buf)
 
         # fout = path.join(dir, f"gex_{block}.dat")
 
@@ -275,11 +298,8 @@ for line in f:
 
         #     f.write(buffer)
 
-        genes = []
-
-        buffer = b""
-        offsets = []
-
+        genes = 0
+        buf = bytearray()
         block += 1
         # break
 
@@ -291,5 +311,5 @@ for line in f:
 f.close()
 
 # write any remaining genes
-if len(genes) > 0:
-    write_entries(cells, block, offsets, buffer)
+if genes > 0:
+    write_entries(block, genes, buf)
