@@ -11,13 +11,15 @@ type (
 		// since we only record non-zero values
 		// Cell index is uint32 but we store as float32 for msgpack
 		// compatibility
-		Data [][2]float32 `json:"gex" msgpack:"d"`
+		//Data       [][2]float32 `json:"gex" msgpack:"d"`
+		Indexes []uint32  `json:"indexes" msgpack:"i"`
+		Gex     []float32 `json:"gex" msgpack:"g"`
 	}
 
-	ResultDataset struct {
-		Id string `json:"id"`
-		//Values   []float32 `json:"values"`
-	}
+	// ResultDataset struct {
+	// 	Id string `json:"id"`
+	// 	//Values   []float32 `json:"values"`
+	// }
 
 	GexResults struct {
 		// we use the simpler value type for platform in search
@@ -26,7 +28,7 @@ type (
 		// the platform name and id
 
 		//Dataset *Dataset      `json:"dataset"`
-		Dataset ResultDataset `json:"dataset"`
-		Genes   []*GexGene    `json:"genes"`
+		DatasetId string     `json:"datasetId"`
+		Genes     []*GexGene `json:"genes"`
 	}
 )

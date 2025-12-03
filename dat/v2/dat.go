@@ -1,10 +1,10 @@
 package v2
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"io"
-	"math"
 	"os"
 
 	"github.com/antonybholmes/go-scrna/dat"
@@ -50,24 +50,21 @@ import (
 
 func SeekGexGeneFromDat(file string, offset int64) (*dat.GexGene, error) {
 	f, err := os.Open(file)
+
 	if err != nil {
 		return nil, err
 	}
+
 	defer f.Close()
 
 	//log.Debug().Msgf("Seeking to position: %s %d", file, seek)
-
-	return _seekGexGeneFromDat(f, offset)
-}
-
-func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 
 	var total uint32
 	binary.Read(io.NewSectionReader(f, offset, 4), binary.LittleEndian, &total)
 
 	// Allocate buffer for whole record
 	buf := make([]byte, total)
-	_, err := f.ReadAt(buf, offset+4) // after total_length
+	_, err = f.ReadAt(buf, offset+4) // after total_length
 
 	if err != nil {
 		return nil, err
@@ -94,6 +91,9 @@ func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 	//size := int(binary.LittleEndian.Uint32(buf[cur:]))
 	cur += 4
 
+	//record.Indexes = make([]uint32, size)
+	//record.Gex = make([]float32, size)
+
 	// Interpret remaining bytes as float32 slice
 	//floats := make([]float32, numValues)
 	//floatBytes := buf[cur:]
@@ -101,19 +101,16 @@ func _seekGexGeneFromDat(f *os.File, offset int64) (*dat.GexGene, error) {
 
 	// each entry is [cellIndex, expressionValue] so num is even and half
 	// the number of entries
-	values, err := decodeFloat32Pairs(buf, cur)
+	err = decodeFloat32Pairs(buf, cur, &record)
 
 	if err != nil {
 		return nil, err
 	}
 
-	record.Data = values
-
 	return &record, nil
-
 }
 
-func decodeFloat32Pairs(buf []byte, offset int) ([][2]float32, error) {
+func decodeFloat32Pairs(buf []byte, offset int, record *dat.GexGene) error {
 	//log.Debug().Msgf("Decoding float32 pairs: offset=%d size=%d bufLen=%d", offset, size, len(buf))
 
 	buf = buf[offset:] // : offset+size] // start at the correct position
@@ -121,25 +118,38 @@ func decodeFloat32Pairs(buf []byte, offset int) ([][2]float32, error) {
 	//log.Debug().Msgf("len(buf)=%d", len(buf))
 
 	if len(buf)%8 != 0 {
-		return nil, fmt.Errorf("buffer length must be multiple of 8 bytes")
+		return fmt.Errorf("buffer length must be multiple of 8 bytes")
 	}
 
-	// each entry is 2 float32 values (8 bytes) so number of pairs is size / 2
-	// where size is in number of float32 values in the buffer
 	numPairs := len(buf) / 8 // each pair is 8 bytes (2x4byte float32)
-	result := make([][2]float32, numPairs)
+	//positions := make([]int32, numPairs)
+	//expression := make([]float32, numPairs)
 
-	off := 0
-	for i := range numPairs {
-		indexBits := binary.LittleEndian.Uint32(buf[off:])
-		expBits := binary.LittleEndian.Uint32(buf[off+4:])
-		result[i] = [2]float32{
-			math.Float32frombits(indexBits),
-			math.Float32frombits(expBits),
-		}
+	record.Indexes = make([]uint32, numPairs)
+	record.Gex = make([]float32, numPairs)
 
-		off += 8
-	}
+	readBuf := bytes.NewReader(buf)
 
-	return result, nil
+	byteLen := int64(numPairs * 4)
+
+	// Read the data into the slices
+	binary.Read(io.NewSectionReader(readBuf, 0, byteLen), binary.LittleEndian, &record.Indexes)
+	binary.Read(io.NewSectionReader(readBuf, byteLen, byteLen), binary.LittleEndian, &record.Gex)
+
+	// // Combine into [][2]float32
+	// result := make([][2]float32, numPairs)
+
+	// off := 0
+	// for i := range numPairs {
+	// 	indexBits := binary.LittleEndian.Uint32(buf[off:])
+	// 	expBits := binary.LittleEndian.Uint32(buf[off+4:])
+	// 	result[i] = [2]float32{
+	// 		math.Float32frombits(indexBits),
+	// 		math.Float32frombits(expBits),
+	// 	}
+
+	// 	off += 8
+	// }
+
+	return nil
 }

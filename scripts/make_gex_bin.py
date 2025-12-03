@@ -208,8 +208,8 @@ for line in f:
 
     # if idx.size < data.size:
     #    print("reject, not enough cells", idx.size, data.size)
-    pairs = [[float(i), float(data[i])] for i in idx]
-    values = [x for pair in pairs for x in pair]
+    # pairs = [[float(i), float(data[i])] for i in idx]
+    # values = [x for pair in pairs for x in pair]
 
     # if len(idx) < 20:
     # print("reject, not enough cells", g)
@@ -229,9 +229,9 @@ for line in f:
 
     gene_id_bytes = ensembl.encode("utf-8")
     gene_symbol_bytes = symbol.encode("utf-8")
-    num_values = len(values)
+    num_values = len(idx)
     total_length = (
-        2 + len(gene_id_bytes) + 2 + len(gene_symbol_bytes) + 4 + num_values * 4
+        2 + len(gene_id_bytes) + 2 + len(gene_symbol_bytes) + 4 + num_values * 8
     )
 
     # print(total_length)
@@ -250,8 +250,9 @@ for line in f:
     # Number of float values
     buf += struct.pack("<I", num_values)
 
-    # Float values
-    buf += struct.pack("<" + "f" * len(values), *values)  # values.tobytes()
+    # write indexes and values as binary
+    buf += struct.pack("<" + "I" * len(idx), *idx)
+    buf += struct.pack("<" + "f" * len(idx), *data[idx])  # values.tobytes()
 
     # if out["s"] == "AHR":
     #     print("AHR", out)

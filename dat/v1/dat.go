@@ -44,7 +44,7 @@ func ReadGexGeneFromDat(file string, index int) (*dat.GexGene, error) {
 	recordSize := offsets[index+1]
 	recordPos := dataStart + recordOffset
 
-	return _seekGexGeneFromDat(f, recordPos, recordSize)
+	return seekGexGeneFromDat(f, recordPos, recordSize)
 
 }
 
@@ -57,10 +57,10 @@ func SeekGexGeneFromDat(file string, seek int64, size int32) (*dat.GexGene, erro
 
 	//log.Debug().Msgf("Seeking to position: %s %d", file, seek)
 
-	return _seekGexGeneFromDat(f, seek, size)
+	return seekGexGeneFromDat(f, seek, size)
 }
 
-func _seekGexGeneFromDat(f *os.File, seek int64, size int32) (*dat.GexGene, error) {
+func seekGexGeneFromDat(f *os.File, seek int64, size int32) (*dat.GexGene, error) {
 
 	// Read offset table (256 uint32s = 1024 bytes)
 	_, err := f.Seek(seek, 0) // Skip the magic byte

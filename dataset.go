@@ -208,8 +208,8 @@ func (dc *DatasetCache) Gex(
 	defer db.Close()
 
 	ret := dat.GexResults{
-		Dataset: dat.ResultDataset{Id: dc.dataset.Id},
-		Genes:   make([]*dat.GexGene, 0, len(genes)),
+		DatasetId: dc.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
+		Genes:     make([]*dat.GexGene, 0, len(genes)),
 	}
 
 	var gexCache = make(map[string]*dat.GexGene)
