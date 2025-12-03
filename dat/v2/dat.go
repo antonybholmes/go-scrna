@@ -130,11 +130,13 @@ func decodeFloat32Pairs(buf []byte, offset int, record *dat.GexGene) error {
 
 	readBuf := bytes.NewReader(buf)
 
-	byteLen := int64(numPairs * 4)
+	//byteLen := int64(numPairs * 4)
 
-	// Read the data into the slices
-	binary.Read(io.NewSectionReader(readBuf, 0, byteLen), binary.LittleEndian, &record.Indexes)
-	binary.Read(io.NewSectionReader(readBuf, byteLen, byteLen), binary.LittleEndian, &record.Gex)
+	// Read the data into the slices since they are contiguous in memory
+	// we can read directly into them one after the other without using
+	// NewSectionReader etc
+	binary.Read(readBuf, binary.LittleEndian, &record.Indexes)
+	binary.Read(readBuf, binary.LittleEndian, &record.Gex)
 
 	// // Combine into [][2]float32
 	// result := make([][2]float32, numPairs)
