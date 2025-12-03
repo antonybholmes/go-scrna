@@ -139,8 +139,8 @@ df_clusters["Cells"] = counts
 
 
 # print all rows msgpack
-
 f = gzip.open(file, "r")
+
 # skip header
 f.readline()
 
