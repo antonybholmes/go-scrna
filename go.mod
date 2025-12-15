@@ -7,7 +7,7 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20251208175344-5a45ea74fe16
+	github.com/antonybholmes/go-sys v0.0.0-20251211184816-38c1e4f69349
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
 
