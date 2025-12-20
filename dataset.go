@@ -9,6 +9,7 @@ import (
 	v2 "github.com/antonybholmes/go-scrna/dat/v2"
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
+	"github.com/antonybholmes/go-sys/query"
 )
 
 type (
@@ -490,11 +491,11 @@ func (dc *DatasetCache) Genes() ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dc *DatasetCache) SearchGenes(query string, limit int16) ([]*Gene, error) {
+func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
-	where, err := sys.SqlBoolQuery(query, func(placeholder int, matchType sys.MatchType) string {
+	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, matchType query.MatchType, not bool) string {
 		// for slqlite
-		ph := fmt.Sprintf("?%d", placeholder)
+		ph := fmt.Sprintf("?%d", placeholderIndex)
 
 		// if matchType == sys.MatchTypeExact {
 		// 	return fmt.Sprintf("(gex.gene_symbol = %s OR gex.ensembl_id = %s)", ph, ph)
@@ -510,7 +511,7 @@ func (dc *DatasetCache) SearchGenes(query string, limit int16) ([]*Gene, error) 
 		return nil, err
 	}
 
-	finalSQL := SearchGeneSql + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
+	finalSql := SearchGeneSql + where.Sql + fmt.Sprintf(" ORDER BY gex.gene_symbol LIMIT %d", limit)
 
 	//log.Debug().Msgf("finalSQL %s", finalSQL)
 
@@ -524,7 +525,7 @@ func (dc *DatasetCache) SearchGenes(query string, limit int16) ([]*Gene, error) 
 
 	ret := make([]*Gene, 0, limit)
 
-	rows, err := db.Query(finalSQL, where.Args...)
+	rows, err := db.Query(finalSql, where.Args...)
 
 	if err != nil {
 		return nil, err

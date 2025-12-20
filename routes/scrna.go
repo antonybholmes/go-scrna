@@ -6,8 +6,8 @@ import (
 	"strconv"
 
 	scrnadbcache "github.com/antonybholmes/go-scrna/cache"
-	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
+	"github.com/antonybholmes/go-sys/query"
 	"github.com/antonybholmes/go-web"
 	"github.com/gin-gonic/gin"
 )
@@ -187,9 +187,9 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 		return
 	}
 
-	query := c.Query("q")
+	q := c.Query("q")
 
-	if query == "" {
+	if q == "" {
 		c.Error(errors.New("query missing"))
 		return
 	}
@@ -204,7 +204,7 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 		}
 	}
 
-	safeQuery := sys.SanitizeQuery(query)
+	safeQuery := query.SanitizeQuery(q)
 
 	log.Debug().Msgf("safe %s", safeQuery)
 
