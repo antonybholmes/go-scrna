@@ -493,9 +493,9 @@ func (dc *DatasetCache) Genes() ([]*Gene, error) {
 
 func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
-	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, matchType query.MatchType, not bool) string {
+	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string) string {
 		// for slqlite
-		ph := fmt.Sprintf("?%d", placeholderIndex)
+		ph := query.IndexedParam(placeholderIndex)
 
 		// if matchType == sys.MatchTypeExact {
 		// 	return fmt.Sprintf("(gex.gene_symbol = %s OR gex.ensembl_id = %s)", ph, ph)
@@ -525,7 +525,7 @@ func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
 	ret := make([]*Gene, 0, limit)
 
-	rows, err := db.Query(finalSql, where.Args...)
+	rows, err := db.Query(finalSql, query.IndexedNamedArgs(where.Args)...)
 
 	if err != nil {
 		return nil, err
