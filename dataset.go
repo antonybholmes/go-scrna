@@ -493,7 +493,7 @@ func (dc *DatasetCache) Genes() ([]*Gene, error) {
 
 func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
-	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string) string {
+	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		// for slqlite
 		ph := query.IndexedParam(placeholderIndex)
 
@@ -504,7 +504,7 @@ func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 		// }
 
 		// we use like even for exact matches to allow for case insensitivity
-		return fmt.Sprintf("(gex.gene_symbol LIKE %s OR gex.ensembl_id LIKE %s)", ph, ph)
+		return query.AddParens("gex.gene_symbol LIKE "+ph+" OR gex.ensembl_id LIKE "+ph, addParens)
 	})
 
 	if err != nil {
