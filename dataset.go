@@ -84,8 +84,9 @@ type (
 	// 	Gex [][]float32 `json:"gex"`
 	// }
 
-	DatasetCache struct {
+	DatasetDB struct {
 		dataset *Dataset
+		db      *sql.DB
 	}
 )
 
@@ -144,25 +145,22 @@ const (
 	SearchGeneSql = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 )
 
-func NewDatasetCache(dataset *Dataset) *DatasetCache {
-	return &DatasetCache{dataset: dataset}
+func NewDatasetDB(dataset *Dataset) *DatasetDB {
+	return &DatasetDB{dataset: dataset,
+		db: sys.Must(sql.Open(sys.Sqlite3DB, dataset.Url))}
 }
 
-func (dc *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
+func (dsdb *DatasetDB) Close() error {
+	return dsdb.db.Close()
+}
 
-	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
+func (dsdb *DatasetDB) FindGenes(genes []string) ([]*Gene, error) {
 
 	ret := make([]*Gene, 0, len(genes))
 
 	for _, g := range genes {
 		var gene Gene
-		err := db.QueryRow(FindGeneSql, g).Scan(
+		err := dsdb.db.QueryRow(FindGeneSql, g).Scan(
 			&gene.Id,
 			&gene.Ensembl,
 			&gene.GeneSymbol,
@@ -184,32 +182,24 @@ func (dc *DatasetCache) FindGenes(genes []string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dc *DatasetCache) Gex(
+func (dsdb *DatasetDB) Gex(
 	geneIds []string) (*dat.GexResults, error) {
 
-	genes, err := dc.FindGenes(geneIds)
+	genes, err := dsdb.FindGenes(geneIds)
 
 	if err != nil {
 		return nil, err
 	}
 
-	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
-
-	datasetUrl := filepath.Dir(dc.dataset.Url)
+	datasetUrl := filepath.Dir(dsdb.dataset.Url)
 
 	// where the gex data is located
 	gexUrl := filepath.Join(datasetUrl, "gex")
 
 	//cellCount := cache.dataset.Cells
 
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
-
 	ret := dat.GexResults{
-		DatasetId: dc.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
+		DatasetId: dsdb.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
 		Genes:     make([]*dat.GexGene, 0, len(genes)),
 	}
 
@@ -335,19 +325,11 @@ func (dc *DatasetCache) Gex(
 // 	}, nil
 // }
 
-func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
+func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
-
-	rows, err := db.Query(ClustersSql)
+	rows, err := dsdb.db.Query(ClustersSql)
 
 	if err != nil {
 		return nil, err
@@ -381,7 +363,7 @@ func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	var clusterId string
 
-	rows, err = db.Query(ClusterMetadataSQL)
+	rows, err = dsdb.db.Query(ClusterMetadataSQL)
 
 	if err != nil {
 		return nil, err
@@ -409,7 +391,7 @@ func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	var cellCount int
 
-	err = db.QueryRow(CellCountSql).Scan(&cellCount)
+	err = dsdb.db.QueryRow(CellCountSql).Scan(&cellCount)
 
 	if err != nil {
 		return nil, err
@@ -417,7 +399,7 @@ func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 
 	cells := make([]*SingleCell, 0, cellCount)
 
-	rows, err = db.Query(CellsSql)
+	rows, err = dsdb.db.Query(CellsSql)
 
 	if err != nil {
 		return nil, err
@@ -444,28 +426,20 @@ func (dc *DatasetCache) Metadata() (*DatasetMetadata, error) {
 	}
 
 	return &DatasetMetadata{
-		Dataset:  dc.dataset.Id,
+		Dataset:  dsdb.dataset.Id,
 		Clusters: clusters,
 		Cells:    cells,
 	}, nil
 }
 
-func (dc *DatasetCache) Genes() ([]*Gene, error) {
+func (dsdb *DatasetDB) Genes() ([]*Gene, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
-
-	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
 
 	// 50k for the num of genes we expect
 	ret := make([]*Gene, 0, 50000)
 
-	rows, err := db.Query(GenesSql)
+	rows, err := dsdb.db.Query(GenesSql)
 
 	if err != nil {
 		return nil, err
@@ -491,7 +465,7 @@ func (dc *DatasetCache) Genes() ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
+func (dsdb *DatasetDB) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		// for slqlite
@@ -515,17 +489,9 @@ func (dc *DatasetCache) SearchGenes(q string, limit int16) ([]*Gene, error) {
 
 	//log.Debug().Msgf("finalSQL %s", finalSQL)
 
-	db, err := sql.Open(sys.Sqlite3DB, dc.dataset.Url)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
-
 	ret := make([]*Gene, 0, limit)
 
-	rows, err := db.Query(finalSql, query.IndexedNamedArgs(where.Args)...)
+	rows, err := dsdb.db.Query(finalSql, query.IndexedNamedArgs(where.Args)...)
 
 	if err != nil {
 		return nil, err

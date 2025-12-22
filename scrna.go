@@ -63,9 +63,9 @@ type (
 		Value float32 `json:"value"`
 	}
 
-	DatasetsCache struct {
-		dir  string
-		path string
+	ScrnaDB struct {
+		dir string
+		db  *sql.DB
 	}
 )
 
@@ -135,9 +135,7 @@ const (
 
 // type GexValue string
 
-func NewDatasetsCache(dir string) *DatasetsCache {
-
-	path := filepath.Join(dir, "datasets.db")
+func NewScrnaDB(dir string) *ScrnaDB {
 
 	// db, err := sql.Open("sqlite3", path)
 
@@ -147,15 +145,19 @@ func NewDatasetsCache(dir string) *DatasetsCache {
 
 	// defer db.Close()
 
-	return &DatasetsCache{dir: dir, path: path}
+	return &ScrnaDB{dir: dir, db: sys.Must(sql.Open(sys.Sqlite3DB, filepath.Join(dir, "datasets.db")))}
 }
 
-func (cache *DatasetsCache) Dir() string {
-	return cache.dir
+func (sdb *ScrnaDB) Dir() string {
+	return sdb.dir
 }
 
-// func (cache *DatasetsCache) GetGenes(genes []string) ([]*GexGene, error) {
-// 	db, err := sql.Open("sqlite3", cache.dir)
+func (sdb *ScrnaDB) Close() error {
+	return sdb.db.Close()
+}
+
+// func (sdb *Datasetssdb) GetGenes(genes []string) ([]*GexGene, error) {
+// 	db, err := sql.Open("sqlite3", sdb.dir)
 
 // 	if err != nil {
 // 		return nil, err
@@ -178,18 +180,11 @@ func (cache *DatasetsCache) Dir() string {
 // 	return ret, nil
 // }
 
-func (cache *DatasetsCache) Species() ([]string, error) {
-	db, err := sql.Open(sys.Sqlite3DB, cache.path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
+func (sdb *ScrnaDB) Species() ([]string, error) {
 
 	species := make([]string, 0, 10)
 
-	rows, err := db.Query(SpeciesSQL)
+	rows, err := sdb.db.Query(SpeciesSQL)
 
 	if err != nil {
 		return nil, err
@@ -213,18 +208,11 @@ func (cache *DatasetsCache) Species() ([]string, error) {
 	return species, nil
 }
 
-func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
-	db, err := sql.Open(sys.Sqlite3DB, cache.path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
+func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
 
 	assemblies := make([]string, 0, 10)
 
-	rows, err := db.Query(AssembliesSql, sql.Named("species", species))
+	rows, err := sdb.db.Query(AssembliesSql, sql.Named("species", species))
 
 	if err != nil {
 		return nil, err
@@ -248,21 +236,13 @@ func (cache *DatasetsCache) Assemblies(species string) ([]string, error) {
 	return assemblies, nil
 }
 
-func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Dataset, error) {
-
-	db, err := sql.Open(sys.Sqlite3DB, cache.path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
+func (sdb *ScrnaDB) Datasets(species string, assembly string) ([]*Dataset, error) {
 
 	datasets := make([]*Dataset, 0, 10)
 
 	log.Debug().Msgf("%s %s", species, assembly)
 
-	datasetRows, err := db.Query(DatasetsSql, sql.Named("species", species), sql.Named("assembly", assembly))
+	datasetRows, err := sdb.db.Query(DatasetsSql, sql.Named("species", species), sql.Named("assembly", assembly))
 
 	if err != nil {
 		log.Debug().Msgf("%s", err)
@@ -288,9 +268,9 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 			return nil, err
 		}
 
-		// log.Debug().Msgf("db %s", filepath.Join(cache.dir, dataset.Url))
+		// log.Debug().Msgf("db %s", filepath.Join(sdb.dir, dataset.Url))
 
-		// db2, err := sql.Open("sqlite3", filepath.Join(cache.dir, dataset.Url))
+		// db2, err := sql.Open("sqlite3", filepath.Join(sdb.dir, dataset.Url))
 
 		// if err != nil {
 		// 	return nil, err
@@ -310,18 +290,11 @@ func (cache *DatasetsCache) Datasets(species string, assembly string) ([]*Datase
 	return datasets, nil
 }
 
-func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
-	db, err := sql.Open(sys.Sqlite3DB, cache.path)
-
-	if err != nil {
-		return nil, err
-	}
-
-	defer db.Close()
+func (sdb *ScrnaDB) dataset(id string) (*Dataset, error) {
 
 	var dataset Dataset
 
-	err = db.QueryRow(DatasetSql, sql.Named("id", id)).Scan(
+	err := sdb.db.QueryRow(DatasetSql, sql.Named("id", id)).Scan(
 		&dataset.Id,
 		&dataset.Name,
 		&dataset.Institution,
@@ -338,18 +311,20 @@ func (cache *DatasetsCache) dataset(id string) (*Dataset, error) {
 	return &dataset, nil
 }
 
-func (cache *DatasetsCache) Gex(id string,
+func (sdb *ScrnaDB) Gex(id string,
 	geneIds []string) (*dat.GexResults, error) {
 
-	dataset, err := cache.dataset(id)
+	dataset, err := sdb.dataset(id)
 
 	if err != nil {
 		return nil, err
 	}
 
-	datasetCache := NewDatasetCache(dataset)
+	datasetsdb := NewDatasetDB(dataset)
 
-	ret, err := datasetCache.Gex(geneIds)
+	defer datasetsdb.Close()
+
+	ret, err := datasetsdb.Gex(geneIds)
 
 	if err != nil {
 		return nil, err
@@ -358,17 +333,17 @@ func (cache *DatasetsCache) Gex(id string,
 	return ret, nil
 }
 
-// func (cache *DatasetsCache) Metadata(publicId string) (*DatasetClusters, error) {
+// func (sdb *Datasetssdb) Metadata(publicId string) (*DatasetClusters, error) {
 
-// 	dataset, err := cache.dataset(publicId)
+// 	dataset, err := sdb.dataset(publicId)
 
 // 	if err != nil {
 // 		return nil, err
 // 	}
 
-// 	datasetCache := NewDatasetCache(dataset)
+// 	datasetsdb := NewDatasetsdb(dataset)
 
-// 	ret, err := datasetCache.Metadata()
+// 	ret, err := datasetsdb.Metadata()
 
 // 	if err != nil {
 // 		return nil, err
@@ -377,9 +352,9 @@ func (cache *DatasetsCache) Gex(id string,
 // 	return ret, nil
 // }
 
-func (cache *DatasetsCache) Metadata(id string) (*DatasetMetadata, error) {
+func (sdb *ScrnaDB) Metadata(id string) (*DatasetMetadata, error) {
 
-	dataset, err := cache.dataset(id)
+	dataset, err := sdb.dataset(id)
 
 	if err != nil {
 		return nil, err
@@ -387,9 +362,9 @@ func (cache *DatasetsCache) Metadata(id string) (*DatasetMetadata, error) {
 
 	log.Debug().Msgf("Dataset id: %s", dataset.Id)
 
-	datasetCache := NewDatasetCache(dataset)
+	datasetsdb := NewDatasetDB(dataset)
 
-	ret, err := datasetCache.Metadata()
+	ret, err := datasetsdb.Metadata()
 
 	if err != nil {
 		log.Error().Msgf("metadata %s", err)
@@ -399,17 +374,17 @@ func (cache *DatasetsCache) Metadata(id string) (*DatasetMetadata, error) {
 	return ret, nil
 }
 
-func (cache *DatasetsCache) Genes(id string) ([]*Gene, error) {
+func (sdb *ScrnaDB) Genes(id string) ([]*Gene, error) {
 
-	dataset, err := cache.dataset(id)
+	dataset, err := sdb.dataset(id)
 
 	if err != nil {
 		return nil, err
 	}
 
-	datasetCache := NewDatasetCache(dataset)
+	datasetsdb := NewDatasetDB(dataset)
 
-	ret, err := datasetCache.Genes()
+	ret, err := datasetsdb.Genes()
 
 	if err != nil {
 		return nil, err
@@ -418,17 +393,17 @@ func (cache *DatasetsCache) Genes(id string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (cache *DatasetsCache) SearchGenes(publicId string, query string, limit int16) ([]*Gene, error) {
+func (sdb *ScrnaDB) SearchGenes(publicId string, query string, limit int16) ([]*Gene, error) {
 
-	dataset, err := cache.dataset(publicId)
+	dataset, err := sdb.dataset(publicId)
 
 	if err != nil {
 		return nil, err
 	}
 
-	datasetCache := NewDatasetCache(dataset)
+	datasetsdb := NewDatasetDB(dataset)
 
-	ret, err := datasetCache.SearchGenes(query, limit)
+	ret, err := datasetsdb.SearchGenes(query, limit)
 
 	if err != nil {
 		return nil, err

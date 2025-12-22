@@ -1,4 +1,4 @@
-package cache
+package scrnadb
 
 import (
 	"sync"
@@ -8,19 +8,19 @@ import (
 )
 
 var (
-	instance *scrna.DatasetsCache
+	instance *scrna.ScrnaDB
 	once     sync.Once
 )
 
-func InitCache(dir string) (*scrna.DatasetsCache, error) {
+func InitScrnaDB(dir string) *scrna.ScrnaDB {
 	once.Do(func() {
-		instance = scrna.NewDatasetsCache(dir)
+		instance = scrna.NewScrnaDB(dir)
 	})
 
-	return instance, nil
+	return instance
 }
 
-func GetInstance() *scrna.DatasetsCache {
+func GetInstance() *scrna.ScrnaDB {
 	return instance
 }
 
