@@ -64,8 +64,8 @@ type (
 	}
 
 	ScrnaDB struct {
-		dir string
 		db  *sql.DB
+		dir string
 	}
 )
 
