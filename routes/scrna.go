@@ -2,13 +2,13 @@ package routes
 
 import (
 	"errors"
-	"fmt"
 	"strconv"
 
 	scrnadbcache "github.com/antonybholmes/go-scrna/scrnadb"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
 	"github.com/antonybholmes/go-web"
+	"github.com/antonybholmes/go-web/auth"
 	"github.com/gin-gonic/gin"
 )
 
@@ -83,12 +83,35 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 // 	web.MakeDataResp(c, "", valueTypes)
 // }
 
+func getUser(c *gin.Context) (*auth.AuthUserJwtClaims, error) {
+
+	var user *auth.AuthUserJwtClaims
+
+	if v, exists := c.Get("user"); exists {
+
+		user = v.(*auth.AuthUserJwtClaims)
+	} else {
+		return nil, errors.New("no user in context")
+	}
+
+	return user, nil
+}
+
 func ScrnaDatasetsRoute(c *gin.Context) {
 
 	species := c.Param("species")
 	assembly := c.Param("assembly")
 
-	datasets, err := scrnadbcache.Datasets(species, assembly)
+	user, err := getUser(c)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	log.Debug().Msgf("scrna user %v", user)
+
+	datasets, err := scrnadbcache.Datasets(species, assembly, user.Permissions)
 
 	if err != nil {
 		c.Error(err)
@@ -100,10 +123,10 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 
 // Gets expression data from a given dataset
 func ScrnaGexRoute(c *gin.Context) {
-	id := c.Param("id")
+	datasetId := c.Param("id")
 
-	if id == "" {
-		c.Error(fmt.Errorf("missing id"))
+	if datasetId == "" {
+		c.Error(errors.New("missing id"))
 		return
 	}
 
@@ -114,8 +137,22 @@ func ScrnaGexRoute(c *gin.Context) {
 		return
 	}
 
+	user, err := getUser(c)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	err = scrnadbcache.HasPermissionToViewDataset(datasetId, user.Permissions)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
 	// default to rna-seq
-	ret, err := scrnadbcache.Gex(id, params.Genes)
+	ret, err := scrnadbcache.Gex(datasetId, params.Genes)
 
 	if err != nil {
 		c.Error(err)
@@ -180,9 +217,9 @@ func ScrnaGenesRoute(c *gin.Context) {
 }
 
 func ScrnaSearchGenesRoute(c *gin.Context) {
-	publicId := c.Param("id")
+	datasetId := c.Param("id")
 
-	if publicId == "" {
+	if datasetId == "" {
 		c.Error(errors.New("id missing"))
 		return
 	}
@@ -208,7 +245,21 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 
 	log.Debug().Msgf("safe %s", safeQuery)
 
-	ret, err := scrnadbcache.SearchGenes(publicId, safeQuery, limit)
+	user, err := getUser(c)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	err = scrnadbcache.HasPermissionToViewDataset(datasetId, user.Permissions)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	ret, err := scrnadbcache.SearchGenes(datasetId, safeQuery, limit)
 
 	if err != nil {
 		c.Error(err)

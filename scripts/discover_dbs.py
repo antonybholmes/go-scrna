@@ -7,7 +7,8 @@ Encode read counts per base in 2 bytes
 import argparse
 import os
 import sqlite3
-from nanoid import generate
+
+import uuid_utils as uuid
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-d", "--dir", help="sample name")
@@ -19,7 +20,7 @@ data = []
 
 for root, dirs, files in os.walk(dir):
     for filename in files:
-        if "dataset.db" in filename:
+        if filename == "dataset.db":
             relative_dir = root.replace(dir, "")[1:]
 
             print(relative_dir)
@@ -33,6 +34,7 @@ for root, dirs, files in os.walk(dir):
 
             conn = sqlite3.connect(os.path.join(root, filename))
 
+            conn.row_factory = sqlite3.Row
             print(filename)
 
             # Create a cursor object
@@ -54,12 +56,18 @@ for root, dirs, files in os.walk(dir):
 
             # Print the results
             for row in results:
-                row = list(row)
-                # row.append(generate("0123456789abcdefghijklmnopqrstuvwxyz", 12))
-                # row.append(dataset)
-                # row.append("db")
-                row.append(cells)
-                row.append(path)
+                row = {
+                    "id": str(uuid.uuid7()),
+                    "dataset_id": row["id"],
+                    "name": row["name"],
+                    "institution": row["institution"],
+                    "species": row["species"],
+                    "assembly": row["assembly"],
+                    "description": row["description"],
+                    "cells": cells,
+                    "url": path,
+                }
+
                 # row.append(dataset)
                 data.append(row)
 
@@ -83,6 +91,7 @@ cursor.execute("BEGIN TRANSACTION;")
 cursor.execute(
     f""" CREATE TABLE datasets (
 	id TEXT PRIMARY KEY ASC,
+    dataset_id TEXT NOT NULL,
 	name TEXT NOT NULL,
 	institution TEXT NOT NULL,
 	species TEXT NOT NULL,
@@ -94,15 +103,53 @@ cursor.execute(
 """
 )
 
+cursor.execute(
+    f""" CREATE TABLE permissions (
+	id TEXT PRIMARY KEY ASC,
+	name TEXT NOT NULL);
+"""
+)
+
+cursor.execute(
+    f""" CREATE TABLE dataset_permissions (
+	id TEXT PRIMARY KEY ASC,
+	dataset_id TEXT,
+    permission_id TEXT,
+    UNIQUE(dataset_id, permission_id),
+    FOREIGN KEY (dataset_id) REFERENCES datasets(id),
+    FOREIGN KEY (permission_id) REFERENCES permissions(id));
+"""
+)
+
 cursor.execute("COMMIT;")
 
 cursor.execute("BEGIN TRANSACTION;")
 
+rdfViewId = str(uuid.uuid7())
+
+cursor.execute(
+    f"INSERT INTO permissions (id, name) VALUES ('{rdfViewId}', 'rdf:view');"
+)
+
+cursor.executemany(
+    f"""INSERT INTO datasets (id, dataset_id, name, institution, species, assembly, description, cells, url) VALUES 
+    (:id, :dataset_id, :name, :institution, :species, :assembly, :description, :cells, :url);""",
+    data,
+)
+
+permissions = []
+
 for row in data:
-    values = ", ".join([f"'{v}'" for v in row])
-    cursor.execute(
-        f"INSERT INTO datasets (id, name, institution, species, assembly, description, cells, url) VALUES ({values});",
-    )
+    id = str(uuid.uuid7())
+    dataset_id = row["id"]
+
+    permissions.append({"id": id, "dataset_id": dataset_id, "permission_id": rdfViewId})
+
+cursor.executemany(
+    f"""INSERT INTO dataset_permissions (id, dataset_id, permission_id) VALUES 
+    (:id, :dataset_id, :permission_id);""",
+    permissions,
+)
 
 cursor.execute("COMMIT;")
 
@@ -121,6 +168,16 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE INDEX datasets_species_idx ON datasets (species, assembly);
+"""
+)
+
+cursor.execute(
+    f""" CREATE INDEX dataset_permissions_dataset_permission_idx ON dataset_permissions (dataset_id, permission_id);
+"""
+)
+
+cursor.execute(
+    f""" CREATE INDEX permissions_name_idx ON permissions (name);
 """
 )
 

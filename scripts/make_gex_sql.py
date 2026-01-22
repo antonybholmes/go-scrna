@@ -1,18 +1,19 @@
+import argparse
 import collections
 import gzip
 import json
 import os
 import re
+import sqlite3
 import struct
 import sys
+
 import msgpack
-import pandas as pd
 import numpy as np
+import pandas as pd
+import uuid_utils as uuid
 from nanoid import generate
 from pysam import index
-import uuid_utils as uuid
-
-import argparse
 
 DAT_INDEX_SIZE = 256 * 4
 DAT_OFFSET = 1 + 4 + DAT_INDEX_SIZE
@@ -41,7 +42,7 @@ df_clusters = pd.read_csv(args.clusters, sep="\t", header=0, index_col=0)
 # get rid of clusters 101 etc
 df_cells = df_cells[df_cells["Cluster"].isin(df_clusters.index)]
 
-print(df_clusters)
+cursor.execute(df_clusters)
 
 
 # use cells to count cells in each cluster
@@ -51,7 +52,7 @@ for c in df_clusters.index:
     count = len(df_cells[df_cells["Cluster"] == c])
     counts.append(count)
 
-print(counts)
+cursor.execute(counts)
 
 cluster_id_map = {c: uuid.uuid7() for i, c in enumerate(df_clusters.index)}
 
@@ -61,171 +62,193 @@ metadata_types = list(sorted(df_clusters.columns[1:].values))
 
 metadata_type_map = {name: uuid.uuid7() for name in metadata_types}
 
-with open(os.path.join(dir, "dataset.sql"), "w") as sqlf:
-    dataset_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+db = os.path.join(dir, "dataset.db")
 
-    print(
-        f"INSERT INTO dataset (id, name, institution, species, assembly, cells, dir) VALUES ('{dataset_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
-        file=sqlf,
+if os.path.exists(db):
+    os.remove(db)
+
+conn = sqlite3.connect(db)
+cursor = conn.cursor()
+
+
+cursor.execute("PRAGMA journal_mode = WAL;")
+cursor.execute("PRAGMA foreign_keys = ON;")
+
+cursor.execute("BEGIN TRANSACTION;")
+
+# read datasets.sql into the db
+with open("schemas/datasets.sql", "r") as sqlf:
+    sql = sqlf.read()
+    cursor.executescript(sql)
+
+cursor.execute("COMMIT;")
+
+
+cursor.execute("BEGIN TRANSACTION;")
+
+
+dataset_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+
+cursor.execute(
+    f"INSERT INTO dataset (id, name, institution, species, assembly, cells, dir) VALUES ('{dataset_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
+)
+
+cursor.execute("BEGIN TRANSACTION;")
+
+sample_map = {}
+for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
+    sample_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
+    cursor.execute(
+        f"INSERT INTO samples (id, dataset_id, name) VALUES ('{sample_id}', '{dataset_id}', '{sample}');",
+    )
+    sample_map[sample] = sample_id  # i + 1
+
+cursor.execute("COMMIT;")
+
+cursor.execute("BEGIN TRANSACTION;")
+
+for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
+    cluster_id = cluster_id_map[row.name]
+
+    cursor.execute(
+        f"INSERT INTO clusters (id, name, cell_count, color) VALUES ('{cluster_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
     )
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+cursor.execute(
+    "COMMIT;",
+)
 
-    sample_map = {}
-    for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
-        sample_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
-        print(
-            f"INSERT INTO samples (id, dataset_id, name) VALUES ('{sample_id}', '{dataset_id}', '{sample}');",
-            file=sqlf,
+cursor.execute(
+    "BEGIN TRANSACTION;",
+)
+
+for name in metadata_types:
+    metadata_id = metadata_type_map[name]  # uuid.uuid7()
+    cursor.execute(
+        f"INSERT INTO metadata_types (id, name) VALUES ('{metadata_id}', '{name}');",
+    )
+
+cursor.execute("COMMIT;")
+
+cursor.execute(
+    "BEGIN TRANSACTION;",
+)
+
+metadata_map = collections.defaultdict(lambda: {})
+
+for i, name in enumerate(metadata_types):
+    metadata_type_id = metadata_type_map[name]
+    for v in sorted(df_clusters[name].unique()):
+        metadata_id = uuid.uuid7()
+        cursor.execute(
+            f"INSERT INTO metadata (id, metadata_type_id, value) VALUES ('{metadata_id}', '{metadata_type_id}',  '{v}');",
         )
-        sample_map[sample] = sample_id  # i + 1
+        metadata_map[name][v] = metadata_id  # index
 
-    print("COMMIT;", file=sqlf)
+cursor.execute("COMMIT;")
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+cursor.execute("BEGIN TRANSACTION;")
 
-    for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
-        cluster_id = cluster_id_map[row.name]
+cursor.execute(metadata_map, metadata_types)
 
-        print(
-            f"INSERT INTO clusters (id, name, cell_count, color) VALUES ('{cluster_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
-            file=sqlf,
+# clusters can have metadata attached to them
+for idx, (i, row) in enumerate(df_clusters.iterrows()):
+    cluster_id = cluster_id_map[row.name]
+    for j, metadata_type in enumerate(metadata_types):
+        cluster_metadata_id = uuid.uuid7()
+        metadata_value = row[j + 1]
+        cursor.execute(metadata_type, metadata_value)
+        metadata_id = metadata_map[metadata_type][metadata_value]
+        cursor.execute(
+            f"INSERT INTO cluster_metadata (id, cluster_id, metadata_id) VALUES ('{cluster_metadata_id}', '{cluster_id}', '{metadata_id}');",
         )
 
-    print("COMMIT;", file=sqlf)
+cursor.execute("COMMIT;")
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+cursor.execute("BEGIN TRANSACTION;")
 
-    for name in metadata_types:
-        metadata_id = metadata_type_map[name]  # uuid.uuid7()
-        print(
-            f"INSERT INTO metadata_types (id, name) VALUES ('{metadata_id}', '{name}');",
-            file=sqlf,
-        )
+for i, row in df_cells.iterrows():
+    cell_id = uuid.uuid7()
+    cursor.execute(
+        f"INSERT INTO cells (id, cluster_id, sample_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', '{cluster_id_map[row["Cluster"]]}', '{sample_map[row["Sample"]]}', '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
+    ),
 
-    print("COMMIT;", file=sqlf)
+cursor.execute("COMMIT;")
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+cursor.execute("BEGIN TRANSACTION;")
 
-    metadata_map = collections.defaultdict(lambda: {})
+for f in sorted(os.listdir(gex_dir)):
+    # if f.endswith(".json.gz"):
+    #     # cursor.execute(f)
+    #     with gzip.open(os.path.join(gex_dir, f), "r") as fin:
+    #         data = json.load(fin)
 
-    for i, name in enumerate(metadata_types):
-        metadata_type_id = metadata_type_map[name]
-        for v in sorted(df_clusters[name].unique()):
-            metadata_id = uuid.uuid7()
-            print(
-                f"INSERT INTO metadata (id, metadata_type_id, value) VALUES ('{metadata_id}', '{metadata_type_id}',  '{v}');",
-                file=sqlf,
-            )
-            metadata_map[name][v] = metadata_id  # index
+    #         for d in data:
+    #             id = d["id"]
+    #             sym = d["sym"]
 
-    print("COMMIT;", file=sqlf)
+    #             cursor.execute(
+    #                 f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset) VALUES ('{id}', '{sym}', '{f}');",
+    #                 file=sqlf,
+    #             )
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+    if f.endswith(".dat"):
+        # cursor.execute(f)
+        file = os.path.join(gex_dir, f)
+        with open(file, "rb") as fin:
 
-    print(metadata_map, metadata_types)
+            magic = fin.read(4)
+            cursor.execute("Magic:", file, magic[0])
 
-    # clusters can have metadata attached to them
-    for idx, (i, row) in enumerate(df_clusters.iterrows()):
-        cluster_id = cluster_id_map[row.name]
-        for j, metadata_type in enumerate(metadata_types):
-            cluster_metadata_id = uuid.uuid7()
-            metadata_value = row[j + 1]
-            print(metadata_type, metadata_value)
-            metadata_id = metadata_map[metadata_type][metadata_value]
-            print(
-                f"INSERT INTO cluster_metadata (id, cluster_id, metadata_id) VALUES ('{cluster_metadata_id}', '{cluster_id}', '{metadata_id}');",
-                file=sqlf,
-            )
+            # Step 1: Read the offset table entry
 
-    print("COMMIT;", file=sqlf)
+            version = struct.unpack("<I", fin.read(4))[0]
+            cursor.execute("Version:", version)
+            cells = struct.unpack("<I", fin.read(4))[0]
+            cursor.execute("Cells:", cells)
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+            # num genes
+            num_entries = struct.unpack("<I", fin.read(4))[0]
 
-    for i, row in df_cells.iterrows():
-        cell_id = uuid.uuid7()
-        print(
-            f"INSERT INTO cells (id, cluster_id, sample_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', '{cluster_id_map[row["Cluster"]]}', '{sample_map[row["Sample"]]}', '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
-            file=sqlf,
-        ),
+            # each entry is 8 bytes (4 bytes offset, 4 bytes size)
+            data = fin.read(num_entries * 4 * 2)
 
-    print("COMMIT;", file=sqlf)
+            # Unpack as  unsigned ints (little-endian)
+            offsets = struct.unpack(f"<{num_entries*2}I", data)
 
-    print("BEGIN TRANSACTION;", file=sqlf)
+            cursor.execute(f, num_entries)
 
-    for f in sorted(os.listdir(gex_dir)):
-        # if f.endswith(".json.gz"):
-        #     # print(f)
-        #     with gzip.open(os.path.join(gex_dir, f), "r") as fin:
-        #         data = json.load(fin)
+            # magic + num_entries + offsets = where msgpack data starts
+            dat_offset = 4 + 4 + 4 + 4 + num_entries * 4 * 2
 
-        #         for d in data:
-        #             id = d["id"]
-        #             sym = d["sym"]
+            for i in range(0, len(offsets), 2):
+                # relative offset for msgpack object
+                offset = offsets[i]
 
-        #             print(
-        #                 f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset) VALUES ('{id}', '{sym}', '{f}');",
-        #                 file=sqlf,
-        #             )
+                # size of msgpack object
+                size = offsets[i + 1]
 
-        if f.endswith(".dat"):
-            # print(f)
-            file = os.path.join(gex_dir, f)
-            with open(file, "rb") as fin:
+                # real offset from start of file
+                seek = dat_offset + offset
 
-                magic = fin.read(4)
-                print("Magic:", file, magic[0])
+                # skip to the msgpack object
+                fin.seek(seek)
 
-                # Step 1: Read the offset table entry
+                # Step 3: Decode one MessagePack object
+                unpacker = msgpack.Unpacker(fin, raw=False)
 
-                version = struct.unpack("<I", fin.read(4))[0]
-                print("Version:", version)
-                cells = struct.unpack("<I", fin.read(4))[0]
-                print("Cells:", cells)
+                # read the first and only record
+                record = next(unpacker)
 
-                # num genes
-                num_entries = struct.unpack("<I", fin.read(4))[0]
+                # now we can get the id and gene symbol
+                gex_id = uuid.uuid7()
+                ensembl_id = record["id"]
+                gene_symbol = record["s"]
 
-                # each entry is 8 bytes (4 bytes offset, 4 bytes size)
-                data = fin.read(num_entries * 4 * 2)
+                # log the offset and size in the db so we can search
+                # for a gene and then know where to find it in the file
+                cursor.execute(
+                    f"INSERT INTO gex (id, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {seek}, {size});",
+                )
 
-                # Unpack as  unsigned ints (little-endian)
-                offsets = struct.unpack(f"<{num_entries*2}I", data)
-
-                print(f, num_entries)
-
-                # magic + num_entries + offsets = where msgpack data starts
-                dat_offset = 4 + 4 + 4 + 4 + num_entries * 4 * 2
-
-                for i in range(0, len(offsets), 2):
-                    # relative offset for msgpack object
-                    offset = offsets[i]
-
-                    # size of msgpack object
-                    size = offsets[i + 1]
-
-                    # real offset from start of file
-                    seek = dat_offset + offset
-
-                    # skip to the msgpack object
-                    fin.seek(seek)
-
-                    # Step 3: Decode one MessagePack object
-                    unpacker = msgpack.Unpacker(fin, raw=False)
-
-                    # read the first and only record
-                    record = next(unpacker)
-
-                    # now we can get the id and gene symbol
-                    gex_id = uuid.uuid7()
-                    ensembl_id = record["id"]
-                    gene_symbol = record["s"]
-
-                    # log the offset and size in the db so we can search
-                    # for a gene and then know where to find it in the file
-                    print(
-                        f"INSERT INTO gex (id, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {seek}, {size});",
-                        file=sqlf,
-                    )
-
-    print("COMMIT;", file=sqlf)
+cursor.execute("COMMIT;")
