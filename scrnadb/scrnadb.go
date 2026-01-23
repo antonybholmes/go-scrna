@@ -48,8 +48,8 @@ func Gex(datasetId string, geneIds []string) (*dat.GexResults, error) {
 // 	return instance.Clusters(id)
 // }
 
-func Metadata(id string) (*scrna.DatasetMetadata, error) {
-	return instance.Metadata(id)
+func Metadata(datasetId string) (*scrna.DatasetMetadata, error) {
+	return instance.Metadata(datasetId)
 }
 
 func Genes(id string) ([]*scrna.Gene, error) {

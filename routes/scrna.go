@@ -8,7 +8,7 @@ import (
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
 	"github.com/antonybholmes/go-web"
-	"github.com/antonybholmes/go-web/auth"
+	"github.com/antonybholmes/go-web/middleware"
 	"github.com/gin-gonic/gin"
 )
 
@@ -83,34 +83,19 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 // 	web.MakeDataResp(c, "", valueTypes)
 // }
 
-func getUser(c *gin.Context) (*auth.AuthUserJwtClaims, error) {
-
-	var user *auth.AuthUserJwtClaims
-
-	if v, exists := c.Get("user"); exists {
-
-		user = v.(*auth.AuthUserJwtClaims)
-	} else {
-		return nil, errors.New("no user in context")
-	}
-
-	return user, nil
-}
-
 func ScrnaDatasetsRoute(c *gin.Context) {
 
 	species := c.Param("species")
 	assembly := c.Param("assembly")
 
-	user, err := getUser(c)
+	user, err := middleware.GetJwtUser(c)
 
 	if err != nil {
 		c.Error(err)
 		return
 	}
 
-	log.Debug().Msgf("scrna user %v", user)
-
+	// Get the datasets the user has permission to view
 	datasets, err := scrnadbcache.Datasets(species, assembly, user.Permissions)
 
 	if err != nil {
@@ -119,6 +104,24 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 	}
 
 	web.MakeDataResp(c, "", datasets)
+}
+
+// Check if user has permission to view dataset which
+// reduces code duplication in route handlers
+func userHasPermissionToViewDataset(c *gin.Context, datasetId string) error {
+	user, err := middleware.GetJwtUser(c)
+
+	if err != nil {
+		return err
+	}
+
+	err = scrnadbcache.HasPermissionToViewDataset(datasetId, user.Permissions)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // Gets expression data from a given dataset
@@ -137,14 +140,7 @@ func ScrnaGexRoute(c *gin.Context) {
 		return
 	}
 
-	user, err := getUser(c)
-
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	err = scrnadbcache.HasPermissionToViewDataset(datasetId, user.Permissions)
+	err = userHasPermissionToViewDataset(c, datasetId)
 
 	if err != nil {
 		c.Error(err)
@@ -181,14 +177,21 @@ func ScrnaGexRoute(c *gin.Context) {
 // }
 
 func ScrnaMetadataRoute(c *gin.Context) {
-	id := c.Param("id")
+	datasetId := c.Param("id")
 
-	if id == "" {
+	if datasetId == "" {
 		c.Error(errors.New("missing id"))
 		return
 	}
 
-	ret, err := scrnadbcache.Metadata(id)
+	err := userHasPermissionToViewDataset(c, datasetId)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	ret, err := scrnadbcache.Metadata(datasetId)
 
 	if err != nil {
 		c.Error(err)
@@ -199,14 +202,21 @@ func ScrnaMetadataRoute(c *gin.Context) {
 }
 
 func ScrnaGenesRoute(c *gin.Context) {
-	publicId := c.Param("id")
+	datasetId := c.Param("id")
 
-	if publicId == "" {
+	if datasetId == "" {
 		c.Error(errors.New("missing id"))
 		return
 	}
 
-	ret, err := scrnadbcache.Genes(publicId)
+	err := userHasPermissionToViewDataset(c, datasetId)
+
+	if err != nil {
+		c.Error(err)
+		return
+	}
+
+	ret, err := scrnadbcache.Genes(datasetId)
 
 	if err != nil {
 		c.Error(err)
@@ -245,14 +255,7 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 
 	log.Debug().Msgf("safe %s", safeQuery)
 
-	user, err := getUser(c)
-
-	if err != nil {
-		c.Error(err)
-		return
-	}
-
-	err = scrnadbcache.HasPermissionToViewDataset(datasetId, user.Permissions)
+	err := userHasPermissionToViewDataset(c, datasetId)
 
 	if err != nil {
 		c.Error(err)

@@ -432,6 +432,7 @@ func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
 	}, nil
 }
 
+// Return the list of available genes for this dataset
 func (dsdb *DatasetDB) Genes() ([]*Gene, error) {
 
 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))

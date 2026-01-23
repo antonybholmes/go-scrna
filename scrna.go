@@ -329,7 +329,8 @@ func (sdb *ScrnaDB) Datasets(species string, assembly string, permissions []stri
 	return datasets, nil
 }
 
-// Return nil if user has permission to view dataset
+// Return nil if user has permission to view dataset otherwise an error
+// describing why not
 func (sdb *ScrnaDB) HasPermissionToViewDataset(datasetId string, permissions []string) error {
 	//return errors.New("not implemented")
 
@@ -431,9 +432,9 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 // 	return ret, nil
 // }
 
-func (sdb *ScrnaDB) Metadata(id string) (*DatasetMetadata, error) {
+func (sdb *ScrnaDB) Metadata(datasetId string) (*DatasetMetadata, error) {
 
-	dataset, err := sdb.dataset(id)
+	dataset, err := sdb.dataset(datasetId)
 
 	if err != nil {
 		return nil, err
@@ -453,9 +454,9 @@ func (sdb *ScrnaDB) Metadata(id string) (*DatasetMetadata, error) {
 	return ret, nil
 }
 
-func (sdb *ScrnaDB) Genes(id string) ([]*Gene, error) {
+func (sdb *ScrnaDB) Genes(datasetId string) ([]*Gene, error) {
 
-	dataset, err := sdb.dataset(id)
+	dataset, err := sdb.dataset(datasetId)
 
 	if err != nil {
 		return nil, err
