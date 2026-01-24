@@ -112,10 +112,9 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE dataset_permissions (
-	id TEXT PRIMARY KEY ASC,
 	dataset_id TEXT,
     permission_id TEXT,
-    UNIQUE(dataset_id, permission_id),
+    PRIMARY KEY(dataset_id, permission_id),
     FOREIGN KEY (dataset_id) REFERENCES datasets(id),
     FOREIGN KEY (permission_id) REFERENCES permissions(id));
 """
