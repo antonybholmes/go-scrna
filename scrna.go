@@ -2,13 +2,13 @@ package scrna
 
 import (
 	"database/sql"
-	"errors"
 	"path/filepath"
+	"strings"
 
 	"github.com/antonybholmes/go-scrna/dat"
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
-	"github.com/antonybholmes/go-web/auth"
+	"github.com/antonybholmes/go-web/auth/sqlite"
 )
 
 type (
@@ -105,51 +105,54 @@ const (
 	// 	ORDER BY gex_value_types.id`
 
 	DatasetsSql = `SELECT DISTINCT
-		datasets.id,	
-		permissions.name as permission,
-		datasets.dataset_id,
-		datasets.name,
-		datasets.institution,
-		datasets.species,
-		datasets.assembly,
-		datasets.cells,
-		datasets.url,
-		datasets.description
-		FROM datasets
-		JOIN dataset_permissions ON datasets.id = dataset_permissions.dataset_id
-		JOIN permissions ON dataset_permissions.permission_id = permissions.id
-		WHERE datasets.species = :species AND datasets.assembly = :assembly
-		ORDER BY datasets.name`
+		d.id,
+		d.name,
+		d.institution,
+		d.species,
+		d.assembly,
+		d.cells,
+		d.url,
+		d.description
+		FROM datasets d
+		JOIN dataset_permissions dp ON d.id = dp.dataset_id
+		JOIN permissions p ON dp.permission_id = p.id
+		WHERE 
+			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>)) 
+			AND d.species = :species AND d.assembly = :assembly
+		ORDER BY d.name`
 
-	DatasetsPermissionsSql = `SELECT DISTINCT
-		datasets.id,	
-		permissions.name as permission,
-		datasets.dataset_id
-		FROM datasets
-		JOIN dataset_permissions ON datasets.id = dataset_permissions.dataset_id
-		JOIN permissions ON dataset_permissions.permission_id = permissions.id
-		WHERE datasets.species = :species AND datasets.assembly = :assembly`
+	// DatasetsPermissionsSql = `SELECT DISTINCT
+	// 	datasets.id,
+	// 	permissions.name as permission,
+	// 	datasets.dataset_id
+	// 	FROM datasets
+	// 	JOIN dataset_permissions ON datasets.id = dataset_permissions.dataset_id
+	// 	JOIN permissions ON dataset_permissions.permission_id = permissions.id
+	// 	WHERE datasets.species = :species AND datasets.assembly = :assembly`
 
-	DatasetPermissionsSql = `SELECT DISTINCT
-		datasets.id,
-		permissions.name as permission
-		FROM datasets
-		JOIN dataset_permissions ON datasets.id = dataset_permissions.dataset_id
-		JOIN permissions ON dataset_permissions.permission_id = permissions.id
-		WHERE datasets.dataset_id = :id`
+	// DatasetPermissionsSql = `SELECT DISTINCT
+	// 	datasets.id,
+	// 	permissions.name as permission
+	// 	FROM datasets
+	// 	JOIN dataset_permissions ON datasets.id = dataset_permissions.dataset_id
+	// 	JOIN permissions ON dataset_permissions.permission_id = permissions.id
+	// 	WHERE datasets.dataset_id = :id`
 
 	DatasetSql = `SELECT 
-		datasets.id,
-		datasets.dataset_id,
-		datasets.name,
-		datasets.institution,
-		datasets.species,
-		datasets.assembly,
-		datasets.cells,
-		datasets.url,
-		datasets.description
-		FROM datasets 
-		WHERE datasets.dataset_id = :id`
+		d.id,
+		d.name,
+		d.institution,
+		d.species,
+		d.assembly,
+		d.cells,
+		d.url,
+		d.description
+		FROM datasets d
+		JOIN dataset_permissions dp ON d.id = dp.dataset_id
+		JOIN permissions p ON dp.permission_id = p.id
+		WHERE 
+			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			AND d.id = :id`
 )
 
 // const DATASETS_SQL = `SELECT
@@ -260,18 +263,19 @@ func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
 	return assemblies, nil
 }
 
-func (sdb *ScrnaDB) Datasets(species string, assembly string, permissions []string) ([]*Dataset, error) {
+func (sdb *ScrnaDB) Datasets(species string, assembly string, isAdmin bool, permissions []string) ([]*Dataset, error) {
 
-	// turn permissions into set
-	permissionSet := sys.NewStringSet().ListUpdate(permissions)
+	namedArgs := []any{sql.Named("species", species),
+		sql.Named("assembly", assembly),
+		sql.Named("is_admin", isAdmin)}
 
-	isAdmin := auth.HasAdminPermission(permissions)
+	inClause := sqlite.MakePermissionsInClause(permissions, &namedArgs)
+
+	query := strings.Replace(DatasetsSql, "<<PERMISSIONS>>", inClause, 1)
 
 	datasets := make([]*Dataset, 0, 10)
 
-	log.Debug().Msgf("%s %s %v %v", species, assembly, permissionSet, isAdmin)
-
-	datasetRows, err := sdb.db.Query(DatasetsSql, sql.Named("species", species), sql.Named("assembly", assembly))
+	datasetRows, err := sdb.db.Query(query, namedArgs...)
 
 	if err != nil {
 		log.Debug().Msgf("%s", err)
@@ -280,15 +284,10 @@ func (sdb *ScrnaDB) Datasets(species string, assembly string, permissions []stri
 
 	defer datasetRows.Close()
 
-	var permission string
-	var id string
-
 	for datasetRows.Next() {
 		var dataset Dataset
 
 		err := datasetRows.Scan(
-			&id,
-			&permission,
 			&dataset.Id,
 			&dataset.Name,
 			&dataset.Institution,
@@ -300,11 +299,6 @@ func (sdb *ScrnaDB) Datasets(species string, assembly string, permissions []stri
 
 		if err != nil {
 			return nil, err
-		}
-
-		// we don't have permission for this dataset so skip
-		if !isAdmin && !permissionSet.Has(permission) {
-			continue
 		}
 
 		// log.Debug().Msgf("db %s", filepath.Join(sdb.dir, dataset.Url))
@@ -331,50 +325,54 @@ func (sdb *ScrnaDB) Datasets(species string, assembly string, permissions []stri
 
 // Return nil if user has permission to view dataset otherwise an error
 // describing why not
-func (sdb *ScrnaDB) HasPermissionToViewDataset(datasetId string, permissions []string) error {
-	//return errors.New("not implemented")
+// func (sdb *ScrnaDB) HasPermissionToViewDataset(datasetId string, permissions []string) error {
+// 	//return errors.New("not implemented")
 
-	if auth.HasAdminPermission(permissions) {
-		return nil
-	}
+// 	if auth.HasAdminPermission(permissions) {
+// 		return nil
+// 	}
 
-	rows, err := sdb.db.Query(DatasetPermissionsSql, sql.Named("id", datasetId))
+// 	rows, err := sdb.db.Query(DatasetPermissionsSql, sql.Named("id", datasetId))
 
-	if err != nil {
-		log.Error().Msgf("checking dataset permissions %s", err)
-		return err
-	}
+// 	if err != nil {
+// 		log.Error().Msgf("checking dataset permissions %s", err)
+// 		return err
+// 	}
 
-	defer rows.Close()
+// 	defer rows.Close()
 
-	permissionSet := sys.NewStringSet().ListUpdate(permissions)
+// 	permissionSet := sys.NewStringSet().ListUpdate(permissions)
 
-	var id string
-	var permission string
+// 	var id string
+// 	var permission string
 
-	for rows.Next() {
-		err := rows.Scan(&id, &permission)
+// 	for rows.Next() {
+// 		err := rows.Scan(&id, &permission)
 
-		if err != nil {
-			log.Error().Msgf("scanning dataset permissions %s", err)
-			return err
-		}
+// 		if err != nil {
+// 			log.Error().Msgf("scanning dataset permissions %s", err)
+// 			return err
+// 		}
 
-		if permissionSet.Has(permission) {
-			return nil
-		}
-	}
+// 		if permissionSet.Has(permission) {
+// 			return nil
+// 		}
+// 	}
 
-	return errors.New("not allowed to view dataset: " + datasetId)
-}
+// 	return errors.New("not allowed to view dataset: " + datasetId)
+// }
 
-func (sdb *ScrnaDB) dataset(datasetId string) (*Dataset, error) {
+func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string) (*Dataset, error) {
 
-	var id string
+	namedArgs := []any{sql.Named("id", datasetId), sql.Named("is_admin", isAdmin)}
+
+	inClause := sqlite.MakePermissionsInClause(permissions, &namedArgs)
+
+	query := strings.Replace(DatasetSql, "<<PERMISSIONS>>", inClause, 1)
+
 	var dataset Dataset
 
-	err := sdb.db.QueryRow(DatasetSql, sql.Named("id", datasetId)).Scan(
-		&id,
+	err := sdb.db.QueryRow(query, namedArgs...).Scan(
 		&dataset.Id,
 		&dataset.Name,
 		&dataset.Institution,
@@ -392,9 +390,11 @@ func (sdb *ScrnaDB) dataset(datasetId string) (*Dataset, error) {
 }
 
 func (sdb *ScrnaDB) Gex(datasetId string,
-	geneIds []string) (*dat.GexResults, error) {
+	geneIds []string,
+	isAdmin bool, permissions []string,
+) (*dat.GexResults, error) {
 
-	dataset, err := sdb.dataset(datasetId)
+	dataset, err := sdb.dataset(datasetId, isAdmin, permissions)
 
 	if err != nil {
 		return nil, err
@@ -432,9 +432,9 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 // 	return ret, nil
 // }
 
-func (sdb *ScrnaDB) Metadata(datasetId string) (*DatasetMetadata, error) {
+func (sdb *ScrnaDB) Metadata(datasetId string, isAdmin bool, permissions []string) (*DatasetMetadata, error) {
 
-	dataset, err := sdb.dataset(datasetId)
+	dataset, err := sdb.dataset(datasetId, isAdmin, permissions)
 
 	if err != nil {
 		return nil, err
@@ -454,9 +454,9 @@ func (sdb *ScrnaDB) Metadata(datasetId string) (*DatasetMetadata, error) {
 	return ret, nil
 }
 
-func (sdb *ScrnaDB) Genes(datasetId string) ([]*Gene, error) {
+func (sdb *ScrnaDB) Genes(datasetId string, isAdmin bool, permissions []string) ([]*Gene, error) {
 
-	dataset, err := sdb.dataset(datasetId)
+	dataset, err := sdb.dataset(datasetId, isAdmin, permissions)
 
 	if err != nil {
 		return nil, err
@@ -473,9 +473,9 @@ func (sdb *ScrnaDB) Genes(datasetId string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (sdb *ScrnaDB) SearchGenes(datasetId string, query string, limit int16) ([]*Gene, error) {
+func (sdb *ScrnaDB) SearchGenes(datasetId string, query string, limit int, isAdmin bool, permissions []string) ([]*Gene, error) {
 
-	dataset, err := sdb.dataset(datasetId)
+	dataset, err := sdb.dataset(datasetId, isAdmin, permissions)
 
 	if err != nil {
 		return nil, err

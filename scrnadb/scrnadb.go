@@ -36,32 +36,30 @@ func Assemblies(species string) ([]string, error) {
 	return instance.Assemblies(species)
 }
 
-func Datasets(species string, assembly string, permissions []string) ([]*scrna.Dataset, error) {
-	return instance.Datasets(species, assembly, permissions)
+func Datasets(species string, assembly string, isAdmin bool, permissions []string) ([]*scrna.Dataset, error) {
+	return instance.Datasets(species, assembly, isAdmin, permissions)
 }
 
-func Gex(datasetId string, geneIds []string) (*dat.GexResults, error) {
-	return instance.Gex(datasetId, geneIds)
+func Gex(datasetId string, geneIds []string, isAdmin bool, permissions []string) (*dat.GexResults, error) {
+	return instance.Gex(datasetId, geneIds, isAdmin, permissions)
 }
 
 // func Clusters(id string) (*scrna.DatasetClusters, error) {
 // 	return instance.Clusters(id)
 // }
 
-func Metadata(datasetId string) (*scrna.DatasetMetadata, error) {
-	return instance.Metadata(datasetId)
+func Metadata(datasetId string, isAdmin bool, permissions []string) (*scrna.DatasetMetadata, error) {
+	return instance.Metadata(datasetId, isAdmin, permissions)
 }
 
-func Genes(id string) ([]*scrna.Gene, error) {
-	return instance.Genes(id)
+func Genes(id string, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
+	return instance.Genes(id, isAdmin, permissions)
 }
 
-func SearchGenes(id string, query string, limit int16) ([]*scrna.Gene, error) {
-	return instance.SearchGenes(id, query, limit)
+func SearchGenes(id string, query string, limit int, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
+	return instance.SearchGenes(id, query, limit, isAdmin, permissions)
 }
 
-func HasPermissionToViewDataset(datasetId string, permissions []string) error {
-	return instance.HasPermissionToViewDataset(datasetId, permissions)
-}
-
-//
+// func HasPermissionToViewDataset(datasetId string, permissions []string) error {
+// 	return instance.HasPermissionToViewDataset(datasetId, permissions)
+// }

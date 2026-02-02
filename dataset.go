@@ -466,7 +466,7 @@ func (dsdb *DatasetDB) Genes() ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dsdb *DatasetDB) SearchGenes(q string, limit int16) ([]*Gene, error) {
+func (dsdb *DatasetDB) SearchGenes(q string, limit int) ([]*Gene, error) {
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		// for slqlite

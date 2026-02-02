@@ -57,8 +57,7 @@ for root, dirs, files in os.walk(dir):
             # Print the results
             for row in results:
                 row = {
-                    "id": str(uuid.uuid7()),
-                    "dataset_id": row["id"],
+                    "id": row["id"],
                     "name": row["name"],
                     "institution": row["institution"],
                     "species": row["species"],
@@ -90,8 +89,7 @@ cursor.execute("BEGIN TRANSACTION;")
 
 cursor.execute(
     f""" CREATE TABLE datasets (
-	id TEXT PRIMARY KEY ASC,
-    dataset_id TEXT NOT NULL,
+	id TEXT PRIMARY KEY,
 	name TEXT NOT NULL,
 	institution TEXT NOT NULL,
 	species TEXT NOT NULL,
@@ -131,22 +129,21 @@ cursor.execute(
 )
 
 cursor.executemany(
-    f"""INSERT INTO datasets (id, dataset_id, name, institution, species, assembly, description, cells, url) VALUES 
-    (:id, :dataset_id, :name, :institution, :species, :assembly, :description, :cells, :url);""",
+    f"""INSERT INTO datasets (id, name, institution, species, assembly, description, cells, url) VALUES 
+    (:id, :name, :institution, :species, :assembly, :description, :cells, :url);""",
     data,
 )
 
 permissions = []
 
 for row in data:
-    id = str(uuid.uuid7())
     dataset_id = row["id"]
 
-    permissions.append({"id": id, "dataset_id": dataset_id, "permission_id": rdfViewId})
+    permissions.append({"dataset_id": dataset_id, "permission_id": rdfViewId})
 
 cursor.executemany(
-    f"""INSERT INTO dataset_permissions (id, dataset_id, permission_id) VALUES 
-    (:id, :dataset_id, :permission_id);""",
+    f"""INSERT INTO dataset_permissions (dataset_id, permission_id) VALUES 
+    (:dataset_id, :permission_id);""",
     permissions,
 )
 
