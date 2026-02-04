@@ -28,7 +28,7 @@ type (
 		// the platform name and id
 
 		//Dataset *Dataset      `json:"dataset"`
-		DatasetId string     `json:"datasetId"`
-		Genes     []*GexGene `json:"genes"`
+		Dataset string     `json:"dataset"`
+		Genes   []*GexGene `json:"genes"`
 	}
 )

@@ -2,10 +2,12 @@ package scrna
 
 import (
 	"database/sql"
+	"fmt"
 	"path/filepath"
 	"strings"
 
 	"github.com/antonybholmes/go-scrna/dat"
+	v2 "github.com/antonybholmes/go-scrna/dat/v2"
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-web/auth/sqlite"
@@ -153,6 +155,22 @@ const (
 		WHERE 
 			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
 			AND d.uuid = :id`
+
+	FindGenesSql = `SELECT 
+		gx.id, 
+		g.ensembl_id,
+		g.gene_symbol,
+		gx.url,
+		gx.offset,
+		gx.size
+		FROM gex gx
+		JOIN genes g ON gx.gene_id = g.id
+		JOIN dataset_permissions dp ON gx.dataset_id = dp.dataset_id
+		JOIN permissions p ON dp.permission_id = p.id
+		WHERE 
+			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			AND gx.dataset_id = :id 
+			AND (<<GENES>>)`
 )
 
 // const DATASETS_SQL = `SELECT
@@ -389,28 +407,158 @@ func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string
 	return &dataset, nil
 }
 
-func (sdb *ScrnaDB) Gex(datasetId string,
-	geneIds []string,
-	isAdmin bool, permissions []string,
-) (*dat.GexResults, error) {
+func MakeInGenesClause(geneIds []string, namedArgs *[]any) string {
+	inPlaceholders := make([]string, 0, len(geneIds)*2)
 
-	dataset, err := sdb.dataset(datasetId, isAdmin, permissions)
+	for i, perm := range geneIds {
+		ph := fmt.Sprintf("q%d", i+1)
+
+		inPlaceholders = append(inPlaceholders, "g.gene_id LIKE :"+ph) // OR g.ensembl_id LIKE :q)
+		inPlaceholders = append(inPlaceholders, "g.gene_symbol LIKE :"+ph)
+		*namedArgs = append(*namedArgs, sql.Named(ph, perm))
+	}
+
+	return strings.Join(inPlaceholders, " OR")
+}
+
+func (sdb *ScrnaDB) FindGenes(datasetId string, geneIds []string, isAdmin bool, permissions []string) ([]*Gene, error) {
+
+	namedArgs := []any{sql.Named("id", datasetId), sql.Named("is_admin", isAdmin)}
+
+	inClause := sqlite.MakePermissionsInClause(permissions, &namedArgs)
+
+	query := strings.Replace(FindGenesSql, "<<PERMISSIONS>>", inClause, 1)
+
+	inGenesClause := MakeInGenesClause(geneIds, &namedArgs)
+
+	query = strings.Replace(query, "<<GENES>>", inGenesClause, 1)
+
+	rows, err := sdb.db.Query(query, namedArgs...)
 
 	if err != nil {
 		return nil, err
 	}
 
-	datasetsdb := NewDatasetDB(dataset)
+	defer rows.Close()
 
-	defer datasetsdb.Close()
+	ret := make([]*Gene, 0, len(geneIds))
 
-	ret, err := datasetsdb.Gex(geneIds)
+	for rows.Next() {
+		var gene Gene
+		err := rows.Scan(
+			&gene.Id,
+			&gene.Ensembl,
+			&gene.GeneSymbol,
+			&gene.Url,
+			&gene.Offset,
+			&gene.Size)
 
-	if err != nil {
-		return nil, err
+		if err != nil {
+			return nil, err
+		}
+		// add as many genes as possible
+		ret = append(ret, &gene)
 	}
 
 	return ret, nil
+}
+
+func (sdb *ScrnaDB) Gex(
+	datasetId string, geneIds []string, isAdmin bool, permissions []string) (*dat.GexResults, error) {
+
+	genes, err := sdb.FindGenes(datasetId, geneIds, isAdmin, permissions)
+
+	if err != nil {
+		return nil, err
+	}
+
+	//datasetUrl := filepath.Dir(dsdb.dataset.Url)
+
+	// where the gex data is located
+	//gexUrl := filepath.Join(datasetUrl, "gex")
+
+	//cellCount := cache.dataset.Cells
+
+	ret := dat.GexResults{
+		Dataset: datasetId, //dat.ResultDataset{Id: dc.dataset.Id},
+		Genes:   make([]*dat.GexGene, 0, len(genes)),
+	}
+
+	var gexCache = make(map[string]*dat.GexGene)
+
+	for _, gene := range genes {
+		gexFile := filepath.Join(sdb.dir, gene.Url)
+
+		gexData, ok := gexCache[gexFile]
+
+		if !ok {
+
+			// f, err := os.Open(gexFile)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// defer f.Close()
+
+			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
+
+			if err != nil {
+				return nil, err
+			}
+
+			// Create gzip reader
+			// gz, err := gzip.NewReader(f)
+			// if err != nil {
+			// 	return nil, err
+			// }
+			// defer gz.Close()
+
+			// // Example 1: decode into a map (for JSON object)
+			// var data []GexFileDataGene
+
+			// if err := json.NewDecoder(gz).Decode(&data); err != nil {
+			// 	return nil, err
+			// }
+
+			gexCache[gexFile] = data
+			gexData = data
+		}
+
+		// find the index of our gene
+
+		// geneIndex := -1
+
+		// for i, g := range gexData {
+		// 	if g.Ensembl == gene.Ensembl {
+		// 		geneIndex = i
+		// 		break
+		// 	}
+		// }
+
+		// if geneIndex == -1 {
+		// 	return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
+		// }
+
+		//gexGeneData := gexData[geneIndex]
+
+		// values := make([][]float32, 0, cellCount)
+
+		// for _, gex := range gexGeneData.Data {
+		// 	// data is sparse consisting of index, value pairs
+		// 	// which we use to fill in the array
+		// 	//i := int32(gex[0])
+		// 	//values[i] = gex[1]
+		// 	//values[i] = gex
+		// 	values = append(values, gex)
+		// }
+
+		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
+
+		//datasetResults.Samples = append(datasetResults.Samples, &sample)
+		ret.Genes = append(ret.Genes, gexData)
+
+	}
+
+	return &ret, nil
 }
 
 // func (sdb *Datasetssdb) Metadata(publicId string) (*DatasetClusters, error) {

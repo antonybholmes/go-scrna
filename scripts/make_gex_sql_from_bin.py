@@ -60,7 +60,10 @@ cluster_id_map = {
 
 metadata_types = list(sorted(df_clusters.columns[1:].values))
 
-metadata_type_map = {name: uuid.uuid7() for name in metadata_types}
+metadata_type_map = {
+    name: {"uuid": uuid.uuid7(), "index": i + 1}
+    for i, name in enumerate(metadata_types)
+}
 
 db = os.path.join(dir, "dataset.db")
 
@@ -103,26 +106,22 @@ cursor.execute(
 """
 )
 
-cursor.execute(
-    f""" CREATE TABLE metadata_types (
-	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
-	name TEXT NOT NULL,
-	description TEXT NOT NULL DEFAULT '',
-	UNIQUE(name));
-"""
-)
+# cursor.execute(
+#     f""" CREATE TABLE metadata_types (
+# 	id INTEGER PRIMARY KEY,
+#     uuid TEXT NOT NULL UNIQUE,
+# 	name TEXT NOT NULL,
+# 	description TEXT NOT NULL DEFAULT '',
+# 	UNIQUE(name));
+# """
+# )
 
 cursor.execute(
     f""" CREATE TABLE metadata (
 	id INTEGER PRIMARY KEY,
     uuid TEXT NOT NULL UNIQUE,
-	metadata_type_id INTEGER NOT NULL,
-	value TEXT NOT NULL,
-	description TEXT NOT NULL DEFAULT '',
-	color TEXT NOT NULL DEFAULT '',
-	UNIQUE(metadata_type_id, value, color),
-	FOREIGN KEY(metadata_type_id) REFERENCES metadata_types(id));
+	name TEXT NOT NULL UNIQUE,
+	description TEXT NOT NULL DEFAULT '');
 """
 )
 
@@ -130,6 +129,7 @@ cursor.execute(
     f""" CREATE TABLE clusters (
 	id INTEGER PRIMARY KEY,
     uuid TEXT NOT NULL UNIQUE,
+    label INTEGER NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
 	cell_count INTEGER NOT NULL,
 	color TEXT NOT NULL DEFAULT ''
@@ -141,6 +141,7 @@ cursor.execute(
     f""" CREATE TABLE cluster_metadata (
 	cluster_id INTEGER NOT NULL,
 	metadata_id INTEGER NOT NULL,
+    value TEXT NOT NULL,
 	PRIMARY KEY(cluster_id, metadata_id),
 	FOREIGN KEY(cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY(metadata_id) REFERENCES metadata(id)  
@@ -150,12 +151,14 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE cells (
+    id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
 	sample_id INTEGER NOT NULL,
     cluster_id INTEGER NOT NULL, 
 	barcode	TEXT NOT NULL, 
 	umap_x REAL NOT NULL, 
 	umap_y REAL NOT NULL,
-    PRIMARY KEY(sample_id, cluster_id, barcode),
+    UNIQUE(sample_id, cluster_id, barcode),
 	FOREIGN KEY (cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY (sample_id) REFERENCES samples(id)  
 );
@@ -166,6 +169,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE gex (
 	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
 	ensembl_id TEXT NOT NULL,
 	gene_symbol TEXT NOT NULL, 
 	file TEXT NOT NULL,
@@ -203,36 +207,36 @@ cursor.execute("BEGIN TRANSACTION;")
 for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
     cluster_id = cluster_id_map[row.name]["uuid"]
 
+    # row name is the cluster label, a number
+    label = int(row.name)
     cursor.execute(
-        f"INSERT INTO clusters (id, uuid, name, cell_count, color) VALUES ({idx + 1}, '{cluster_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
+        f"INSERT INTO clusters (id, uuid, label, name, cell_count, color) VALUES ({idx + 1}, '{cluster_id}', {label}, '{cluster}',  {counts[idx]}, '{row["Color"]}');",
     )
 
 cursor.execute("COMMIT;")
 
-cursor.execute("BEGIN TRANSACTION;")
+# cursor.execute("BEGIN TRANSACTION;")
 
-for i, name in enumerate(metadata_types):
-    metadata_id = metadata_type_map[name]  # uuid.uuid7()
-    cursor.execute(
-        f"INSERT INTO metadata_types (id, uuid, name) VALUES ({i + 1}, '{metadata_id}', '{name}');",
-    )
+# for i, name in enumerate(metadata_types):
+#     metadata_id = metadata_type_map[name]  # uuid.uuid7()
+#     cursor.execute(
+#         f"INSERT INTO metadata_types (id, uuid, name) VALUES ({i + 1}, '{metadata_id}', '{name}');",
+#     )
 
-cursor.execute("COMMIT;")
+# cursor.execute("COMMIT;")
 
 cursor.execute("BEGIN TRANSACTION;")
 
 metadata_map = collections.defaultdict(lambda: {})
 
-idx = 1
+
 for i, name in enumerate(metadata_types):
-    metadata_type_id = metadata_type_map[name]
-    for v in sorted(df_clusters[name].unique()):
-        metadata_id = uuid.uuid7()
-        cursor.execute(
-            f"INSERT INTO metadata (id, uuid, metadata_type_id, value) VALUES ({idx}, '{metadata_id}', '{metadata_type_id}',  '{v}');",
-        )
-        metadata_map[name][v] = metadata_id  # index
-        idx += 1
+    metadata_type_id = metadata_type_map[name]["uuid"]
+    idx = metadata_type_map[name]["index"]
+    cursor.execute(
+        f"INSERT INTO metadata (id, uuid, name) VALUES ({idx}, '{metadata_type_id}',  '{name}');",
+    )
+
 
 cursor.execute("COMMIT;")
 
@@ -243,13 +247,13 @@ cursor.execute("BEGIN TRANSACTION;")
 for idx, (i, row) in enumerate(df_clusters.iterrows()):
     cluster_index = cluster_id_map[row.name]["index"]
     cluster_id = cluster_id_map[row.name]["uuid"]
+
     for j, metadata_type in enumerate(metadata_types):
-        cluster_metadata_id = uuid.uuid7()
+        metadata_index = metadata_type_map[metadata_type]["index"]
         metadata_value = row[j + 1]
 
-        metadata_id = metadata_map[metadata_type][metadata_value]
         cursor.execute(
-            f"INSERT INTO cluster_metadata (cluster_id, metadata_id) VALUES ({cluster_index}, {j+1});",
+            f"INSERT INTO cluster_metadata (cluster_id, metadata_id, value) VALUES ({cluster_index}, {metadata_index}, '{metadata_value}');",
         )
 
 cursor.execute("COMMIT;")
@@ -259,7 +263,7 @@ cursor.execute("BEGIN TRANSACTION;")
 for i, row in df_cells.iterrows():
     cell_id = uuid.uuid7()
     cursor.execute(
-        f"INSERT INTO cells (sample_id, cluster_id, barcode, umap_x, umap_y) VALUES ({sample_map[row["Sample"]]["index"]}, {cluster_id_map[row["Cluster"]]["index"]}, '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
+        f"INSERT INTO cells (uuid, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', {sample_map[row["Sample"]]["index"]}, {cluster_id_map[row["Cluster"]]["index"]}, '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
     )
 
 cursor.execute("COMMIT;")
@@ -329,7 +333,7 @@ for f in sorted(os.listdir(gex_dir)):
                 # log the offset and size in the db so we can search
                 # for a gene and then know where to find it in the file
                 cursor.execute(
-                    f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
+                    f"INSERT INTO gex (uuid, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
                 )
 
                 # size does not include the 4 bytes of size itself

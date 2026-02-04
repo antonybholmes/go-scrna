@@ -28,9 +28,9 @@ type (
 		Id         string `json:"id"`
 		Ensembl    string `json:"geneId"`
 		GeneSymbol string `json:"geneSymbol"`
-		File       string `json:"-"`
+		Url        string `json:"-"`
 		Offset     int64  `json:"-"`
-		Size       int32  `json:"-"`
+		Size       int64  `json:"-"`
 	}
 
 	// More human readable for output
@@ -41,32 +41,36 @@ type (
 	// }
 
 	ClusterMetadata struct {
-		Id          string `json:"id"`
+		//Id          string `json:"-"`
 		Name        string `json:"name"`
 		Value       string `json:"value"`
 		Description string `json:"description,omitempty"`
-		Color       string `json:"color,omitempty"`
+		//Color       string `json:"color,omitempty"`
 	}
 
 	Cluster struct {
-		Id        string                      `json:"id"`
-		Metadata  map[string]*ClusterMetadata `json:"metadata,omitempty"`
-		Color     string                      `json:"color"`
-		Name      string                      `json:"name"`
-		CellCount int                         `json:"cells"`
+		Id        string            `json:"id"`
+		Metadata  map[string]string `json:"metadata,omitempty"`
+		Color     string            `json:"color"`
+		Label     int               `json:"label"`
+		Name      string            `json:"name"`
+		CellCount int               `json:"cells"`
 	}
 
 	Pos struct {
-		X float32 `json:"x"`
-		Y float32 `json:"y"`
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
 	}
 
 	SingleCell struct {
-		Id      string `json:"id"`
-		Sample  string `json:"sampleId"`
-		Cluster string `json:"clusterId"`
-		Barcode string `json:"barcode"`
-		Pos     Pos    `json:"pos"`
+		Pos
+		//Id      string `json:"id"`
+		//Sample string `json:"sampleId"`
+		SampleName string `json:"sampleName"`
+		//Cluster string `json:"clusterId"`
+		ClusterLabel int    `json:"clusterLabel"`
+		Barcode      string `json:"barcode,omitempty"`
+		//Pos          Pos    `json:"pos"`
 	}
 
 	DatasetMetadata struct {
@@ -95,52 +99,60 @@ type (
 const (
 	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
 
-	ClustersSql = `SELECT 
-		clusters.id,
-		clusters.name,
-		clusters.cell_count,
-		clusters.color
-		FROM clusters`
+	ClustersSql = `SELECT DISTINCT 
+		c.uuid,
+		c.label,
+		c.name,
+		c.cell_count,
+		c.color,
+		m.name AS metadata_name,
+		cm.value AS metadata_value
+		FROM clusters c
+		JOIN cluster_metadata cm ON c.id = cm.cluster_id
+		JOIN metadata m ON cm.metadata_id = m.id
+		ORDER BY c.name, m.name`
 
-	ClusterMetadataSQL = `SELECT
-		cluster_metadata.id,
-		cluster_metadata.cluster_id,
-		metadata_types.name,
-		metadata.value,
-		metadata.color
-		FROM cluster_metadata
-		JOIN metadata ON cluster_metadata.metadata_id = metadata.id
-		JOIN metadata_types ON metadata.metadata_type_id = metadata_types.id
-		ORDER by cluster_metadata.cluster_id, metadata_types.id, metadata.id`
+	// ClusterMetadataSQL = `SELECT
+	// 	cluster_metadata.cluster_id,
+	// 	metadata_types.name,
+	// 	metadata.value,
+	// 	metadata.color
+	// 	FROM cluster_metadata
+	// 	JOIN metadata ON cluster_metadata.metadata_id = metadata.id
+	// 	JOIN metadata_types ON metadata.metadata_type_id = metadata_types.id
+	// 	ORDER by cluster_metadata.cluster_id, metadata_types.id, metadata.id`
 
-	CellsSql = `SELECT 
-		cells.id,
-		cells.barcode,
-		cells.umap_x,
-		cells.umap_y,
-		cells.cluster_id,
-		samples.name
-		FROM cells
-		JOIN samples ON cells.sample_id = samples.id
-		ORDER BY cells.id`
+	CellsSql = `SELECT
+		c.umap_x,
+		c.umap_y,
+		s.name,
+		cl.label
+		FROM cells c
+		JOIN samples s ON c.sample_id = s.id
+		JOIN clusters cl ON c.cluster_id = cl.id
+		WHERE c.dataset_id = :id
+		ORDER BY c.id`
 
 	GenesSql = `SELECT 
-		gex.id, 
-		gex.ensembl_id,
-		gex.gene_symbol 
-		FROM gex
-		ORDER BY gex.gene_symbol`
+		g.id, 
+		g.ensembl_id,
+		g.gene_symbol 
+		FROM gex gx
+		JOIN genes g ON gx.gene_id = g.id
+		WHERE gx.dataset_id = :id
+		ORDER BY g.gene_symbol`
 
-	FindGeneSql = `SELECT 
-		gex.id, 
-		gex.ensembl_id,
-		gex.gene_symbol,
-		gex.file,
-		gex.offset,
-		gex.size
-		FROM gex
-		WHERE gex.gene_symbol LIKE ?1 OR gex.ensembl_id LIKE ?1
-		LIMIT 1`
+	// FindGeneSql = `SELECT
+	// 	gx.id,
+	// 	g.ensembl_id,
+	// 	g.gene_symbol,
+	// 	gx.url,
+	// 	gx.offset,
+	// 	gx.size
+	// 	FROM gex gx
+	// 	JOIN genes g ON gx.gene_id = g.id
+	// 	WHERE gx.dataset_id = :id AND (g.gene_symbol LIKE :q OR g.ensembl_id LIKE :q)
+	// 	LIMIT 1`
 
 	SearchGeneSql = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 )
@@ -160,11 +172,11 @@ func (dsdb *DatasetDB) FindGenes(genes []string) ([]*Gene, error) {
 
 	for _, g := range genes {
 		var gene Gene
-		err := dsdb.db.QueryRow(FindGeneSql, g).Scan(
+		err := dsdb.db.QueryRow(FindGenesSql, g).Scan(
 			&gene.Id,
 			&gene.Ensembl,
 			&gene.GeneSymbol,
-			&gene.File,
+			&gene.Url,
 			&gene.Offset,
 			&gene.Size)
 
@@ -199,14 +211,14 @@ func (dsdb *DatasetDB) Gex(
 	//cellCount := cache.dataset.Cells
 
 	ret := dat.GexResults{
-		DatasetId: dsdb.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
-		Genes:     make([]*dat.GexGene, 0, len(genes)),
+		Dataset: dsdb.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
+		Genes:   make([]*dat.GexGene, 0, len(genes)),
 	}
 
 	var gexCache = make(map[string]*dat.GexGene)
 
 	for _, gene := range genes {
-		gexFile := filepath.Join(gexUrl, gene.File)
+		gexFile := filepath.Join(gexUrl, gene.Url)
 
 		gexData, ok := gexCache[gexFile]
 
@@ -338,56 +350,68 @@ func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
 	defer rows.Close()
 
 	clusters := make([]*Cluster, 0, 50)
-	clusterMap := make(map[string]*Cluster)
+	//clusterMap := make(map[string]*Cluster)
+
+	var currentCluster *Cluster
 
 	for rows.Next() {
 		var cluster Cluster
+		var metadata ClusterMetadata
 
 		err := rows.Scan(
 			&cluster.Id,
+			&cluster.Label,
 			&cluster.Name,
 			&cluster.CellCount,
-			&cluster.Color)
+			&cluster.Color,
+			&metadata.Name,
+			&metadata.Value)
 
 		if err != nil {
 			return nil, err
 		}
 
-		cluster.Metadata = make(map[string]*ClusterMetadata, 5)
+		if currentCluster == nil || currentCluster.Id != cluster.Id {
+			// same cluster, add metadata
+			currentCluster = &cluster
+			currentCluster.Metadata = make(map[string]string, 5) // make([]*ClusterMetadata, 0, 5)
+			clusters = append(clusters, currentCluster)
+		}
 
-		clusters = append(clusters, &cluster)
-		clusterMap[cluster.Id] = &cluster
+		currentCluster.Metadata[metadata.Name] = metadata.Value
+
+		//clusterMap[cluster.Id] = &cluster
 	}
 
 	// add metadata to clusters
 
-	var clusterId string
+	//var clusterId string
 
-	rows, err = dsdb.db.Query(ClusterMetadataSQL)
+	//rows, err = dsdb.db.Query(ClusterMetadataSQL)
 
-	if err != nil {
-		return nil, err
-	}
+	//if err != nil {
+	//	return nil, err
+	//}
 
-	defer rows.Close()
+	//defer rows.Close()
 
-	log.Debug().Msgf("Dataset cluster s: %d", len(clusters))
+	// log.Debug().Msgf("Dataset cluster s: %d", len(clusters))
 
-	for rows.Next() {
-		var md = ClusterMetadata{}
+	// for rows.Next() {
+	// 	var md = ClusterMetadata{}
 
-		err := rows.Scan(&md.Id, &clusterId, &md.Name, &md.Value, &md.Color)
+	// 	err := rows.Scan(&clusterId, &md.Name, &md.Value)
 
-		if err != nil {
-			return nil, err
-		}
+	// 	if err != nil {
+	// 		return nil, err
+	// 	}
 
-		//index := clusterId - 1
+	// 	//index := clusterId - 1
 
-		log.Debug().Msgf("Adding metadata to cluster: %s %s", clusterId, md.Name)
+	// 	log.Debug().Msgf("Adding metadata to cluster: %s %s", clusterId, md.Name)
 
-		clusterMap[clusterId].Metadata[md.Name] = &md
-	}
+	// 	clusterMap[clusterId].Metadata[md.Name] = &md
+	// }
 
 	var cellCount int
 
@@ -411,12 +435,11 @@ func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
 		var cell SingleCell
 
 		err := rows.Scan(
-			&cell.Id,
-			&cell.Barcode,
+
 			&cell.Pos.X,
 			&cell.Pos.Y,
-			&cell.Cluster,
-			&cell.Sample)
+			&cell.SampleName,
+			&cell.ClusterLabel)
 
 		if err != nil {
 			return nil, err
