@@ -381,6 +381,31 @@ for root, dirs, files in os.walk(dir):
                 data,
             )
 
+            #
+            # Insert cells
+            #
+            cursor2.execute(
+                "SELECT uuid, sample_id, cluster_id, barcode, umap_x, umap_y FROM cells"
+            )
+            row = cursor2.fetchall()
+            data = []
+            for cell in row:
+                data.append(
+                    {
+                        "uuid": cell["uuid"],
+                        "sample_id": cell["sample_id"],
+                        "cluster_id": cell["cluster_id"],
+                        "barcode": cell["barcode"],
+                        "umap_x": cell["umap_x"],
+                        "umap_y": cell["umap_y"],
+                    }
+                )
+            cursor.executemany(
+                f"""INSERT INTO cells (uuid, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES 
+                (:uuid, :sample_id, :cluster_id, :barcode, :umap_x, :umap_y);""",
+                data,
+            )
+
             dataset_id += 1
 
             conn2.close()

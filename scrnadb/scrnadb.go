@@ -52,8 +52,8 @@ func Metadata(datasetId string, isAdmin bool, permissions []string) (*scrna.Data
 	return instance.Metadata(datasetId, isAdmin, permissions)
 }
 
-func Genes(id string, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
-	return instance.Genes(id, isAdmin, permissions)
+func Genes(datasetId string, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
+	return instance.Genes(datasetId, isAdmin, permissions)
 }
 
 func SearchGenes(id string, query string, limit int, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {

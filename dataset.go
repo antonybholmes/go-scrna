@@ -3,22 +3,18 @@ package scrna
 import (
 	"database/sql"
 	"fmt"
-	"path/filepath"
 
-	"github.com/antonybholmes/go-scrna/dat"
-	v2 "github.com/antonybholmes/go-scrna/dat/v2"
-	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
 )
 
 type (
 	Dataset struct {
-		Id          string `json:"id"`
-		Name        string `json:"name"`
-		Species     string `json:"species"`
-		Assembly    string `json:"assembly"`
-		Url         string `json:"-"`
+		Id       string `json:"id"`
+		Name     string `json:"name"`
+		Species  string `json:"species"`
+		Assembly string `json:"assembly"`
+		//Url         string `json:"-"`
 		Institution string `json:"institution"`
 		Description string `json:"description"`
 		Cells       int    `json:"cells"`
@@ -74,7 +70,7 @@ type (
 	}
 
 	DatasetMetadata struct {
-		Dataset  string        `json:"datasetId"`
+		Dataset  string        `json:"dataset"`
 		Clusters []*Cluster    `json:"clusters"`
 		Cells    []*SingleCell `json:"cells"`
 	}
@@ -99,18 +95,18 @@ type (
 const (
 	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
 
-	ClustersSql = `SELECT DISTINCT 
-		c.uuid,
-		c.label,
-		c.name,
-		c.cell_count,
-		c.color,
-		m.name AS metadata_name,
-		cm.value AS metadata_value
-		FROM clusters c
-		JOIN cluster_metadata cm ON c.id = cm.cluster_id
-		JOIN metadata m ON cm.metadata_id = m.id
-		ORDER BY c.name, m.name`
+	// ClustersSql = `SELECT DISTINCT
+	// 	c.uuid,
+	// 	c.label,
+	// 	c.name,
+	// 	c.cell_count,
+	// 	c.color,
+	// 	m.name AS metadata_name,
+	// 	cm.value AS metadata_value
+	// 	FROM clusters c
+	// 	JOIN cluster_metadata cm ON c.id = cm.cluster_id
+	// 	JOIN metadata m ON cm.metadata_id = m.id
+	// 	ORDER BY c.name, m.name`
 
 	// ClusterMetadataSQL = `SELECT
 	// 	cluster_metadata.cluster_id,
@@ -122,25 +118,25 @@ const (
 	// 	JOIN metadata_types ON metadata.metadata_type_id = metadata_types.id
 	// 	ORDER by cluster_metadata.cluster_id, metadata_types.id, metadata.id`
 
-	CellsSql = `SELECT
-		c.umap_x,
-		c.umap_y,
-		s.name,
-		cl.label
-		FROM cells c
-		JOIN samples s ON c.sample_id = s.id
-		JOIN clusters cl ON c.cluster_id = cl.id
-		WHERE c.dataset_id = :id
-		ORDER BY c.id`
+	// CellsSql = `SELECT
+	// 	c.umap_x,
+	// 	c.umap_y,
+	// 	s.name,
+	// 	cl.label
+	// 	FROM cells c
+	// 	JOIN samples s ON c.sample_id = s.id
+	// 	JOIN clusters cl ON c.cluster_id = cl.id
+	// 	WHERE c.dataset_id = :id
+	// 	ORDER BY c.id`
 
-	GenesSql = `SELECT 
-		g.id, 
-		g.ensembl_id,
-		g.gene_symbol 
-		FROM gex gx
-		JOIN genes g ON gx.gene_id = g.id
-		WHERE gx.dataset_id = :id
-		ORDER BY g.gene_symbol`
+	// GenesSql = `SELECT
+	// 	g.id,
+	// 	g.ensembl_id,
+	// 	g.gene_symbol
+	// 	FROM gex gx
+	// 	JOIN genes g ON gx.gene_id = g.id
+	// 	WHERE gx.dataset_id = :id
+	// 	ORDER BY g.gene_symbol`
 
 	// FindGeneSql = `SELECT
 	// 	gx.id,
@@ -157,10 +153,10 @@ const (
 	SearchGeneSql = `SELECT id, ensembl_id, gene_symbol FROM gex WHERE `
 )
 
-func NewDatasetDB(dataset *Dataset) *DatasetDB {
-	return &DatasetDB{dataset: dataset,
-		db: sys.Must(sql.Open(sys.Sqlite3DB, dataset.Url))}
-}
+// func NewDatasetDB(dataset *Dataset) *DatasetDB {
+// 	return &DatasetDB{dataset: dataset,
+// 		db: sys.Must(sql.Open(sys.Sqlite3DB, dataset.Url))}
+// }
 
 func (dsdb *DatasetDB) Close() error {
 	return dsdb.db.Close()
@@ -194,103 +190,103 @@ func (dsdb *DatasetDB) FindGenes(genes []string) ([]*Gene, error) {
 	return ret, nil
 }
 
-func (dsdb *DatasetDB) Gex(
-	geneIds []string) (*dat.GexResults, error) {
+// func (dsdb *DatasetDB) Gex(
+// 	geneIds []string) (*dat.GexResults, error) {
 
-	genes, err := dsdb.FindGenes(geneIds)
+// 	genes, err := dsdb.FindGenes(geneIds)
 
-	if err != nil {
-		return nil, err
-	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	datasetUrl := filepath.Dir(dsdb.dataset.Url)
+// 	datasetUrl := filepath.Dir(dsdb.dataset.Url)
 
-	// where the gex data is located
-	gexUrl := filepath.Join(datasetUrl, "gex")
+// 	// where the gex data is located
+// 	gexUrl := filepath.Join(datasetUrl, "gex")
 
-	//cellCount := cache.dataset.Cells
+// 	//cellCount := cache.dataset.Cells
 
-	ret := dat.GexResults{
-		Dataset: dsdb.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
-		Genes:   make([]*dat.GexGene, 0, len(genes)),
-	}
+// 	ret := dat.GexResults{
+// 		Dataset: dsdb.dataset.Id, //dat.ResultDataset{Id: dc.dataset.Id},
+// 		Genes:   make([]*dat.GexGene, 0, len(genes)),
+// 	}
 
-	var gexCache = make(map[string]*dat.GexGene)
+// 	var gexCache = make(map[string]*dat.GexGene)
 
-	for _, gene := range genes {
-		gexFile := filepath.Join(gexUrl, gene.Url)
+// 	for _, gene := range genes {
+// 		gexFile := filepath.Join(gexUrl, gene.Url)
 
-		gexData, ok := gexCache[gexFile]
+// 		gexData, ok := gexCache[gexFile]
 
-		if !ok {
+// 		if !ok {
 
-			// f, err := os.Open(gexFile)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// defer f.Close()
+// 			// f, err := os.Open(gexFile)
+// 			// if err != nil {
+// 			// 	return nil, err
+// 			// }
+// 			// defer f.Close()
 
-			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
+// 			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
 
-			if err != nil {
-				return nil, err
-			}
+// 			if err != nil {
+// 				return nil, err
+// 			}
 
-			// Create gzip reader
-			// gz, err := gzip.NewReader(f)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// defer gz.Close()
+// 			// Create gzip reader
+// 			// gz, err := gzip.NewReader(f)
+// 			// if err != nil {
+// 			// 	return nil, err
+// 			// }
+// 			// defer gz.Close()
 
-			// // Example 1: decode into a map (for JSON object)
-			// var data []GexFileDataGene
+// 			// // Example 1: decode into a map (for JSON object)
+// 			// var data []GexFileDataGene
 
-			// if err := json.NewDecoder(gz).Decode(&data); err != nil {
-			// 	return nil, err
-			// }
+// 			// if err := json.NewDecoder(gz).Decode(&data); err != nil {
+// 			// 	return nil, err
+// 			// }
 
-			gexCache[gexFile] = data
-			gexData = data
-		}
+// 			gexCache[gexFile] = data
+// 			gexData = data
+// 		}
 
-		// find the index of our gene
+// 		// find the index of our gene
 
-		// geneIndex := -1
+// 		// geneIndex := -1
 
-		// for i, g := range gexData {
-		// 	if g.Ensembl == gene.Ensembl {
-		// 		geneIndex = i
-		// 		break
-		// 	}
-		// }
+// 		// for i, g := range gexData {
+// 		// 	if g.Ensembl == gene.Ensembl {
+// 		// 		geneIndex = i
+// 		// 		break
+// 		// 	}
+// 		// }
 
-		// if geneIndex == -1 {
-		// 	return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
-		// }
+// 		// if geneIndex == -1 {
+// 		// 	return nil, fmt.Errorf("%s not found", gene.GeneSymbol)
+// 		// }
 
-		//gexGeneData := gexData[geneIndex]
+// 		//gexGeneData := gexData[geneIndex]
 
-		// values := make([][]float32, 0, cellCount)
+// 		// values := make([][]float32, 0, cellCount)
 
-		// for _, gex := range gexGeneData.Data {
-		// 	// data is sparse consisting of index, value pairs
-		// 	// which we use to fill in the array
-		// 	//i := int32(gex[0])
-		// 	//values[i] = gex[1]
-		// 	//values[i] = gex
-		// 	values = append(values, gex)
-		// }
+// 		// for _, gex := range gexGeneData.Data {
+// 		// 	// data is sparse consisting of index, value pairs
+// 		// 	// which we use to fill in the array
+// 		// 	//i := int32(gex[0])
+// 		// 	//values[i] = gex[1]
+// 		// 	//values[i] = gex
+// 		// 	values = append(values, gex)
+// 		// }
 
-		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
+// 		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
 
-		//datasetResults.Samples = append(datasetResults.Samples, &sample)
-		ret.Genes = append(ret.Genes, gexData)
+// 		//datasetResults.Samples = append(datasetResults.Samples, &sample)
+// 		ret.Genes = append(ret.Genes, gexData)
 
-	}
+// 	}
 
-	return &ret, nil
-}
+// 	return &ret, nil
+// }
 
 // func (dataset *DatasetCache) Clusters() (*DatasetClusters, error) {
 
@@ -337,123 +333,123 @@ func (dsdb *DatasetDB) Gex(
 // 	}, nil
 // }
 
-func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
+// func (dsdb *DatasetDB) Metadata() (*DatasetMetadata, error) {
 
-	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
+// 	//log.Debug().Msgf("cripes %v", filepath.Join(cache.dir, cache.dataset.Path))
 
-	rows, err := dsdb.db.Query(ClustersSql)
+// 	rows, err := dsdb.db.Query(ClustersSql)
 
-	if err != nil {
-		return nil, err
-	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	defer rows.Close()
+// 	defer rows.Close()
 
-	clusters := make([]*Cluster, 0, 50)
-	//clusterMap := make(map[string]*Cluster)
+// 	clusters := make([]*Cluster, 0, 50)
+// 	//clusterMap := make(map[string]*Cluster)
 
-	var currentCluster *Cluster
+// 	var currentCluster *Cluster
 
-	for rows.Next() {
-		var cluster Cluster
-		var metadata ClusterMetadata
+// 	for rows.Next() {
+// 		var cluster Cluster
+// 		var metadata ClusterMetadata
 
-		err := rows.Scan(
-			&cluster.Id,
-			&cluster.Label,
-			&cluster.Name,
-			&cluster.CellCount,
-			&cluster.Color,
-			&metadata.Name,
-			&metadata.Value)
+// 		err := rows.Scan(
+// 			&cluster.Id,
+// 			&cluster.Label,
+// 			&cluster.Name,
+// 			&cluster.CellCount,
+// 			&cluster.Color,
+// 			&metadata.Name,
+// 			&metadata.Value)
 
-		if err != nil {
-			return nil, err
-		}
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		if currentCluster == nil || currentCluster.Id != cluster.Id {
-			// same cluster, add metadata
-			currentCluster = &cluster
-			currentCluster.Metadata = make(map[string]string, 5) // make([]*ClusterMetadata, 0, 5)
-			clusters = append(clusters, currentCluster)
-		}
+// 		if currentCluster == nil || currentCluster.Id != cluster.Id {
+// 			// same cluster, add metadata
+// 			currentCluster = &cluster
+// 			currentCluster.Metadata = make(map[string]string, 5) // make([]*ClusterMetadata, 0, 5)
+// 			clusters = append(clusters, currentCluster)
+// 		}
 
-		currentCluster.Metadata[metadata.Name] = metadata.Value
+// 		currentCluster.Metadata[metadata.Name] = metadata.Value
 
-		//clusterMap[cluster.Id] = &cluster
-	}
+// 		//clusterMap[cluster.Id] = &cluster
+// 	}
 
-	// add metadata to clusters
+// 	// add metadata to clusters
 
-	//var clusterId string
+// 	//var clusterId string
 
-	//rows, err = dsdb.db.Query(ClusterMetadataSQL)
+// 	//rows, err = dsdb.db.Query(ClusterMetadataSQL)
 
-	//if err != nil {
-	//	return nil, err
-	//}
+// 	//if err != nil {
+// 	//	return nil, err
+// 	//}
 
-	//defer rows.Close()
+// 	//defer rows.Close()
 
-	// log.Debug().Msgf("Dataset cluster s: %d", len(clusters))
+// 	// log.Debug().Msgf("Dataset cluster s: %d", len(clusters))
 
-	// for rows.Next() {
-	// 	var md = ClusterMetadata{}
+// 	// for rows.Next() {
+// 	// 	var md = ClusterMetadata{}
 
-	// 	err := rows.Scan(&clusterId, &md.Name, &md.Value)
+// 	// 	err := rows.Scan(&clusterId, &md.Name, &md.Value)
 
-	// 	if err != nil {
-	// 		return nil, err
-	// 	}
+// 	// 	if err != nil {
+// 	// 		return nil, err
+// 	// 	}
 
-	// 	//index := clusterId - 1
+// 	// 	//index := clusterId - 1
 
-	// 	log.Debug().Msgf("Adding metadata to cluster: %s %s", clusterId, md.Name)
+// 	// 	log.Debug().Msgf("Adding metadata to cluster: %s %s", clusterId, md.Name)
 
-	// 	clusterMap[clusterId].Metadata[md.Name] = &md
-	// }
+// 	// 	clusterMap[clusterId].Metadata[md.Name] = &md
+// 	// }
 
-	var cellCount int
+// 	var cellCount int
 
-	err = dsdb.db.QueryRow(CellCountSql).Scan(&cellCount)
+// 	err = dsdb.db.QueryRow(CellCountSql).Scan(&cellCount)
 
-	if err != nil {
-		return nil, err
-	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	cells := make([]*SingleCell, 0, cellCount)
+// 	cells := make([]*SingleCell, 0, cellCount)
 
-	rows, err = dsdb.db.Query(CellsSql)
+// 	rows, err = dsdb.db.Query(CellsSql)
 
-	if err != nil {
-		return nil, err
-	}
+// 	if err != nil {
+// 		return nil, err
+// 	}
 
-	defer rows.Close()
+// 	defer rows.Close()
 
-	for rows.Next() {
-		var cell SingleCell
+// 	for rows.Next() {
+// 		var cell SingleCell
 
-		err := rows.Scan(
+// 		err := rows.Scan(
 
-			&cell.Pos.X,
-			&cell.Pos.Y,
-			&cell.SampleName,
-			&cell.ClusterLabel)
+// 			&cell.Pos.X,
+// 			&cell.Pos.Y,
+// 			&cell.SampleName,
+// 			&cell.ClusterLabel)
 
-		if err != nil {
-			return nil, err
-		}
+// 		if err != nil {
+// 			return nil, err
+// 		}
 
-		cells = append(cells, &cell)
-	}
+// 		cells = append(cells, &cell)
+// 	}
 
-	return &DatasetMetadata{
-		Dataset:  dsdb.dataset.Id,
-		Clusters: clusters,
-		Cells:    cells,
-	}, nil
-}
+// 	return &DatasetMetadata{
+// 		Dataset:  dsdb.dataset.Id,
+// 		Clusters: clusters,
+// 		Cells:    cells,
+// 	}, nil
+// }
 
 // Return the list of available genes for this dataset
 func (dsdb *DatasetDB) Genes() ([]*Gene, error) {

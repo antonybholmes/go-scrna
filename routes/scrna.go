@@ -156,6 +156,8 @@ func ScrnaGexRoute(c *gin.Context) {
 			return
 		}
 
+		log.Debug().Msgf("getting gex for dataset %s genes=%v", datasetId, params.Genes)
+
 		// default to rna-seq
 		ret, err := scrnadbcache.Gex(datasetId, params.Genes, isAdmin, user.Permissions)
 
