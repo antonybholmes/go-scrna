@@ -105,7 +105,7 @@ const (
 	// 	ORDER BY gex_value_types.id`
 
 	DatasetsSql = `SELECT DISTINCT
-		d.id,
+		d.uuid,
 		d.name,
 		d.institution,
 		d.species,
@@ -139,7 +139,7 @@ const (
 	// 	WHERE datasets.dataset_id = :id`
 
 	DatasetSql = `SELECT 
-		d.id,
+		d.uuid,
 		d.name,
 		d.institution,
 		d.species,
@@ -152,7 +152,7 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
-			AND d.id = :id`
+			AND d.uuid = :id`
 )
 
 // const DATASETS_SQL = `SELECT

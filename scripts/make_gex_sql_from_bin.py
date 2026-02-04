@@ -1,3 +1,4 @@
+import argparse
 import collections
 import gzip
 import json
@@ -6,15 +7,13 @@ import re
 import sqlite3
 import struct
 import sys
+
 import msgpack
-import pandas as pd
 import numpy as np
+import pandas as pd
+import uuid_utils as uuid
 from nanoid import generate
 from pysam import index
-import uuid_utils as uuid
-
-import argparse
-
 
 DAT_INDEX_SIZE = 256 * 4
 DAT_OFFSET = 1 + 4 + DAT_INDEX_SIZE
@@ -52,7 +51,10 @@ for c in df_clusters.index:
     counts.append(count)
 
 
-cluster_id_map = {c: uuid.uuid7() for i, c in enumerate(df_clusters.index)}
+# map cluster id to uuid e.g. 1 -> 'c4f8e2a0-1d5b-11ee-be56-0242ac120002'
+cluster_id_map = {
+    c: {"uuid": uuid.uuid7(), "index": i + 1} for i, c in enumerate(df_clusters.index)
+}
 
 # df_clusters["Cells"] = counts
 
@@ -76,7 +78,8 @@ cursor.execute("BEGIN TRANSACTION;")
 
 cursor.execute(
     f""" CREATE TABLE dataset (
-	id TEXT PRIMARY KEY ASC,
+	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL, 
 	institution TEXT NOT NULL, 
 	species TEXT NOT NULL, 
@@ -91,8 +94,9 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE samples (
-	id TEXT PRIMARY KEY ASC,
-	dataset_id TEXT NOT NULL,
+	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
+	dataset_id INTEGER NOT NULL,
 	name TEXT NOT NULL UNIQUE,
 	FOREIGN KEY(dataset_id) REFERENCES dataset(id)
 );
@@ -101,7 +105,8 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE metadata_types (
-	id TEXT PRIMARY KEY ASC,
+	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	UNIQUE(name));
@@ -110,8 +115,9 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE metadata (
-	id TEXT PRIMARY KEY ASC,
-	metadata_type_id TEXT NOT NULL,
+	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
+	metadata_type_id INTEGER NOT NULL,
 	value TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	color TEXT NOT NULL DEFAULT '',
@@ -122,7 +128,8 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE clusters (
-	id TEXT PRIMARY KEY ASC,
+	id INTEGER PRIMARY KEY,
+    uuid TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
 	cell_count INTEGER NOT NULL,
 	color TEXT NOT NULL DEFAULT ''
@@ -132,10 +139,9 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE cluster_metadata (
-	id TEXT PRIMARY KEY ASC,
-	cluster_id TEXT NOT NULL,
-	metadata_id TEXT NOT NULL,
-	UNIQUE(cluster_id, metadata_id),
+	cluster_id INTEGER NOT NULL,
+	metadata_id INTEGER NOT NULL,
+	PRIMARY KEY(cluster_id, metadata_id),
 	FOREIGN KEY(cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY(metadata_id) REFERENCES metadata(id)  
 );
@@ -144,12 +150,12 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE cells (
-	id TEXT PRIMARY KEY ASC,
-	cluster_id TEXT NOT NULL, 
-	sample_id TEXT NOT NULL,
+	sample_id INTEGER NOT NULL,
+    cluster_id INTEGER NOT NULL, 
 	barcode	TEXT NOT NULL, 
 	umap_x REAL NOT NULL, 
-	umap_y REAL NOT NULL, 
+	umap_y REAL NOT NULL,
+    PRIMARY KEY(sample_id, cluster_id, barcode),
 	FOREIGN KEY (cluster_id) REFERENCES clusters(id),
 	FOREIGN KEY (sample_id) REFERENCES samples(id)  
 );
@@ -159,7 +165,7 @@ cursor.execute(
 
 cursor.execute(
     f""" CREATE TABLE gex (
-	id TEXT PRIMARY KEY ASC,
+	id INTEGER PRIMARY KEY,
 	ensembl_id TEXT NOT NULL,
 	gene_symbol TEXT NOT NULL, 
 	file TEXT NOT NULL,
@@ -178,7 +184,7 @@ dataset_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 
 
 
 cursor.execute(
-    f"INSERT INTO dataset (id, name, institution, species, assembly, cells, dir) VALUES ('{dataset_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
+    f"INSERT INTO dataset (id, uuid, name, institution, species, assembly, cells, dir) VALUES (1, '{dataset_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
 )
 
 
@@ -186,29 +192,29 @@ sample_map = {}
 for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
     sample_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
     cursor.execute(
-        f"INSERT INTO samples (id, dataset_id, name) VALUES ('{sample_id}', '{dataset_id}', '{sample}');",
+        f"INSERT INTO samples (id, uuid, dataset_id, name) VALUES ({i + 1}, '{sample_id}', 1, '{sample}');",
     )
-    sample_map[sample] = sample_id  # i + 1
+    sample_map[sample] = {"uuid": sample_id, "index": i + 1}
 
 cursor.execute("COMMIT;")
 
 cursor.execute("BEGIN TRANSACTION;")
 
 for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
-    cluster_id = cluster_id_map[row.name]
+    cluster_id = cluster_id_map[row.name]["uuid"]
 
     cursor.execute(
-        f"INSERT INTO clusters (id, name, cell_count, color) VALUES ('{cluster_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
+        f"INSERT INTO clusters (id, uuid, name, cell_count, color) VALUES ({idx + 1}, '{cluster_id}', '{cluster}',  {counts[idx]}, '{row["Color"]}');",
     )
 
 cursor.execute("COMMIT;")
 
 cursor.execute("BEGIN TRANSACTION;")
 
-for name in metadata_types:
+for i, name in enumerate(metadata_types):
     metadata_id = metadata_type_map[name]  # uuid.uuid7()
     cursor.execute(
-        f"INSERT INTO metadata_types (id, name) VALUES ('{metadata_id}', '{name}');",
+        f"INSERT INTO metadata_types (id, uuid, name) VALUES ({i + 1}, '{metadata_id}', '{name}');",
     )
 
 cursor.execute("COMMIT;")
@@ -217,14 +223,16 @@ cursor.execute("BEGIN TRANSACTION;")
 
 metadata_map = collections.defaultdict(lambda: {})
 
+idx = 1
 for i, name in enumerate(metadata_types):
     metadata_type_id = metadata_type_map[name]
     for v in sorted(df_clusters[name].unique()):
         metadata_id = uuid.uuid7()
         cursor.execute(
-            f"INSERT INTO metadata (id, metadata_type_id, value) VALUES ('{metadata_id}', '{metadata_type_id}',  '{v}');",
+            f"INSERT INTO metadata (id, uuid, metadata_type_id, value) VALUES ({idx}, '{metadata_id}', '{metadata_type_id}',  '{v}');",
         )
         metadata_map[name][v] = metadata_id  # index
+        idx += 1
 
 cursor.execute("COMMIT;")
 
@@ -233,14 +241,15 @@ cursor.execute("BEGIN TRANSACTION;")
 
 # clusters can have metadata attached to them
 for idx, (i, row) in enumerate(df_clusters.iterrows()):
-    cluster_id = cluster_id_map[row.name]
+    cluster_index = cluster_id_map[row.name]["index"]
+    cluster_id = cluster_id_map[row.name]["uuid"]
     for j, metadata_type in enumerate(metadata_types):
         cluster_metadata_id = uuid.uuid7()
         metadata_value = row[j + 1]
 
         metadata_id = metadata_map[metadata_type][metadata_value]
         cursor.execute(
-            f"INSERT INTO cluster_metadata (id, cluster_id, metadata_id) VALUES ('{cluster_metadata_id}', '{cluster_id}', '{metadata_id}');",
+            f"INSERT INTO cluster_metadata (cluster_id, metadata_id) VALUES ({cluster_index}, {j+1});",
         )
 
 cursor.execute("COMMIT;")
@@ -250,8 +259,8 @@ cursor.execute("BEGIN TRANSACTION;")
 for i, row in df_cells.iterrows():
     cell_id = uuid.uuid7()
     cursor.execute(
-        f"INSERT INTO cells (id, cluster_id, sample_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', '{cluster_id_map[row["Cluster"]]}', '{sample_map[row["Sample"]]}', '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
-    ),
+        f"INSERT INTO cells (sample_id, cluster_id, barcode, umap_x, umap_y) VALUES ({sample_map[row["Sample"]]["index"]}, {cluster_id_map[row["Cluster"]]["index"]}, '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
+    )
 
 cursor.execute("COMMIT;")
 
@@ -320,7 +329,7 @@ for f in sorted(os.listdir(gex_dir)):
                 # log the offset and size in the db so we can search
                 # for a gene and then know where to find it in the file
                 cursor.execute(
-                    f"INSERT INTO gex (id, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
+                    f"INSERT INTO gex (ensembl_id, gene_symbol, file, offset, size) VALUES ('{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
                 )
 
                 # size does not include the 4 bytes of size itself
