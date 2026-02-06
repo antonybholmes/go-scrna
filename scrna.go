@@ -119,7 +119,7 @@ const (
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
-			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>)) 
+			<<PERMISSIONS>> 
 			AND d.species = :species AND d.assembly = :assembly
 		ORDER BY d.name`
 
@@ -152,7 +152,7 @@ const (
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
-			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			<<PERMISSIONS>>
 			AND d.uuid = :id`
 
 	FindGenesSql = `SELECT 
@@ -168,7 +168,7 @@ const (
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
-			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			<<PERMISSIONS>>
 			AND d.uuid = :id 
 			AND (g.gene_id IN (<<GENES>>) OR g.gene_symbol IN (<<GENES>>))`
 
@@ -182,7 +182,7 @@ const (
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
-			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			<<PERMISSIONS>>
 			AND d.uuid = :id 
 			AND (<<GENES>>)
 		ORDER BY g.gene_symbol 
@@ -203,7 +203,7 @@ const (
 		JOIN cluster_metadata cm ON c.id = cm.cluster_id
 		JOIN metadata m ON cm.metadata_id = m.id
 		WHERE
-			(:is_admin = 1 OR p.name IN (<<PERMISSIONS>>))
+			<<PERMISSIONS>>
 			AND d.uuid = :id
 		ORDER BY c.name, m.name`
 
@@ -343,9 +343,7 @@ func (sdb *ScrnaDB) Datasets(species string, assembly string, isAdmin bool, perm
 	namedArgs := []any{sql.Named("species", species),
 		sql.Named("assembly", assembly)}
 
-	inClause := sqlite.MakePermissionsInClause(permissions, isAdmin, &namedArgs)
-
-	query := strings.Replace(DatasetsSql, "<<PERMISSIONS>>", inClause, 1)
+	query := sqlite.MakePermissionsSql(DatasetsSql, permissions, isAdmin, &namedArgs)
 
 	datasets := make([]*Dataset, 0, 10)
 
@@ -439,9 +437,7 @@ func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	inClause := sqlite.MakePermissionsInClause(permissions, isAdmin, &namedArgs)
-
-	query := strings.Replace(DatasetSql, "<<PERMISSIONS>>", inClause, 1)
+	query := sqlite.MakePermissionsSql(DatasetSql, permissions, isAdmin, &namedArgs)
 
 	var dataset Dataset
 
@@ -467,9 +463,7 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 		sql.Named("q", fmt.Sprintf("%%%s%%", q)),
 		sql.Named("limit", limit)}
 
-	inClause := sqlite.MakePermissionsInClause(permissions, isAdmin, &namedArgs)
-
-	stmt := strings.Replace(SearchGenesSql, "<<PERMISSIONS>>", inClause, 1)
+	stmt := sqlite.MakePermissionsSql(SearchGenesSql, permissions, isAdmin, &namedArgs)
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		return query.AddParens("g.gene_id LIKE :q OR g.gene_symbol LIKE :q", addParens)
