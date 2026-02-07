@@ -28,16 +28,16 @@ func Dir() string {
 	return instance.Dir()
 }
 
-func Species() ([]string, error) {
-	return instance.Species()
+func Genomes() ([]string, error) {
+	return instance.Genomes()
 }
 
-func Assemblies(species string) ([]string, error) {
-	return instance.Assemblies(species)
+func Assemblies(genome string) ([]string, error) {
+	return instance.Assemblies(genome)
 }
 
-func Datasets(species string, assembly string, isAdmin bool, permissions []string) ([]*scrna.Dataset, error) {
-	return instance.Datasets(species, assembly, isAdmin, permissions)
+func Datasets(genome string, assembly string, isAdmin bool, permissions []string) ([]*scrna.Dataset, error) {
+	return instance.Datasets(genome, assembly, isAdmin, permissions)
 }
 
 func Gex(datasetId string, geneIds []string, isAdmin bool, permissions []string) (*dat.GexResults, error) {

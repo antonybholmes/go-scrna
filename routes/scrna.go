@@ -50,9 +50,9 @@ func parseParamsFromPost(c *gin.Context) (*ScrnaParams, error) {
 // 	return nil
 // }
 
-func ScrnaSpeciesRoute(c *gin.Context) {
+func ScrnaGenomesRoute(c *gin.Context) {
 
-	types, err := scrnadbcache.Species()
+	types, err := scrnadbcache.Genomes()
 
 	if err != nil {
 		c.Error(err)

@@ -282,7 +282,7 @@ func (sdb *ScrnaDB) Close() error {
 // 	return ret, nil
 // }
 
-func (sdb *ScrnaDB) Species() ([]string, error) {
+func (sdb *ScrnaDB) Genomes() ([]string, error) {
 
 	species := make([]string, 0, 10)
 
@@ -338,9 +338,9 @@ func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
 	return assemblies, nil
 }
 
-func (sdb *ScrnaDB) Datasets(species string, assembly string, isAdmin bool, permissions []string) ([]*Dataset, error) {
+func (sdb *ScrnaDB) Datasets(genome string, assembly string, isAdmin bool, permissions []string) ([]*Dataset, error) {
 
-	namedArgs := []any{sql.Named("species", species),
+	namedArgs := []any{sql.Named("genome", genome),
 		sql.Named("assembly", assembly)}
 
 	query := sqlite.MakePermissionsSql(DatasetsSql, permissions, isAdmin, &namedArgs)
