@@ -45,11 +45,11 @@ type (
 	}
 
 	Cluster struct {
-		Id        string            `json:"id"`
 		Metadata  map[string]string `json:"metadata,omitempty"`
+		Id        string            `json:"id"`
 		Color     string            `json:"color"`
-		Label     int               `json:"label"`
 		Name      string            `json:"name"`
+		Label     int               `json:"label"`
 		CellCount int               `json:"cells"`
 	}
 
@@ -59,14 +59,10 @@ type (
 	}
 
 	SingleCell struct {
-		Pos
-		//Id      string `json:"id"`
-		//Sample string `json:"sampleId"`
 		SampleName string `json:"sampleName"`
-		//Cluster string `json:"clusterId"`
-		ClusterLabel int    `json:"clusterLabel"`
-		Barcode      string `json:"barcode,omitempty"`
-		//Pos          Pos    `json:"pos"`
+		Barcode    string `json:"barcode,omitempty"`
+		Pos
+		ClusterLabel int `json:"clusterLabel"`
 	}
 
 	DatasetMetadata struct {
