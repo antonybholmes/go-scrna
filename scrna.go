@@ -343,7 +343,7 @@ func (sdb *ScrnaDB) Datasets(genome string, assembly string, isAdmin bool, permi
 	namedArgs := []any{sql.Named("genome", genome),
 		sql.Named("assembly", assembly)}
 
-	query := sqlite.MakePermissionsSql(DatasetsSql, permissions, isAdmin, &namedArgs)
+	query := sqlite.MakePermissionsSql(DatasetsSql, isAdmin, permissions, &namedArgs)
 
 	datasets := make([]*Dataset, 0, 10)
 
@@ -437,7 +437,7 @@ func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(DatasetSql, permissions, isAdmin, &namedArgs)
+	query := sqlite.MakePermissionsSql(DatasetSql, isAdmin, permissions, &namedArgs)
 
 	var dataset Dataset
 
@@ -463,7 +463,7 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 		sql.Named("q", fmt.Sprintf("%%%s%%", q)),
 		sql.Named("limit", limit)}
 
-	stmt := sqlite.MakePermissionsSql(SearchGenesSql, permissions, isAdmin, &namedArgs)
+	stmt := sqlite.MakePermissionsSql(SearchGenesSql, isAdmin, permissions, &namedArgs)
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		return query.AddParens("g.gene_id LIKE :q OR g.gene_symbol LIKE :q", addParens)
@@ -509,7 +509,7 @@ func (sdb *ScrnaDB) FindGenes(datasetId string, geneIds []string, isAdmin bool, 
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(FindGenesSql, permissions, isAdmin, &namedArgs)
+	query := sqlite.MakePermissionsSql(FindGenesSql, isAdmin, permissions, &namedArgs)
 
 	log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
 
@@ -673,7 +673,7 @@ func (sdb *ScrnaDB) Metadata(datasetId string, isAdmin bool, permissions []strin
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(ClustersSql, permissions, isAdmin, &namedArgs)
+	query := sqlite.MakePermissionsSql(ClustersSql, isAdmin, permissions, &namedArgs)
 
 	rows, err := sdb.db.Query(query, namedArgs...)
 
@@ -768,7 +768,7 @@ func (sdb *ScrnaDB) Genes(datasetId string, isAdmin bool, permissions []string) 
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(GenesSql, permissions, isAdmin, &namedArgs)
+	query := sqlite.MakePermissionsSql(GenesSql, isAdmin, permissions, &namedArgs)
 
 	rows, err := sdb.db.Query(query, namedArgs...)
 

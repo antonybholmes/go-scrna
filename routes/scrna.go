@@ -64,7 +64,7 @@ func ScrnaGenomesRoute(c *gin.Context) {
 
 func ScrnaAssembliesRoute(c *gin.Context) {
 
-	species := c.Param("species")
+	genome := c.Param("genome")
 
 	// technologies, err := gexdbcache.AllTechnologies() //gexdbcache.Technologies() //species)
 
@@ -73,7 +73,7 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 	// 	return
 	// }
 
-	assemblies, err := scrnadbcache.Assemblies(species) //gexdbcache.Technologies()
+	assemblies, err := scrnadbcache.Assemblies(genome) //gexdbcache.Technologies()
 
 	if err != nil {
 		c.Error(err)
