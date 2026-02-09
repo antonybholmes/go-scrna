@@ -36,10 +36,10 @@ cursor.execute("BEGIN TRANSACTION;")
 cursor.execute(
     f""" CREATE TABLE datasets (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL,
 	institution TEXT NOT NULL,
-	species TEXT NOT NULL,
+	genome TEXT NOT NULL,
 	assembly TEXT NOT NULL,
 	cells INTEGER NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
@@ -50,7 +50,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE permissions (
 	id INTEGER PRIMARY KEY ASC,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL);
 """
 )
@@ -68,14 +68,14 @@ cursor.execute(
 rdfViewId = str(uuid.uuid7())
 
 cursor.execute(
-    f"INSERT INTO permissions (id, uuid, name) VALUES (1, '{rdfViewId}', 'rdf:view');"
+    f"INSERT INTO permissions (id, public_id, name) VALUES (1, '{rdfViewId}', 'rdf:view');"
 )
 
 
 cursor.execute(
     f""" CREATE TABLE samples (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	dataset_id INTEGER NOT NULL,
 	name TEXT NOT NULL UNIQUE,
 	FOREIGN KEY(dataset_id) REFERENCES datasets(id)
@@ -87,7 +87,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE metadata (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
 	description TEXT NOT NULL DEFAULT '');
 """
@@ -96,7 +96,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE clusters (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
     dataset_id INTEGER NOT NULL,
     label INTEGER NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
@@ -122,7 +122,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE cells (
     id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	sample_id INTEGER NOT NULL,
     cluster_id INTEGER NOT NULL, 
 	barcode	TEXT NOT NULL, 
@@ -138,7 +138,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE genes (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	gene_id INTEGER NOT NULL UNIQUE,
     gene_symbol TEXT NOT NULL UNIQUE,
     description TEXT NOT NULL DEFAULT '',
@@ -151,13 +151,13 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE gex (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
     dataset_id INTEGER NOT NULL,
 	gene_id INTEGER NOT NULL,
 	url TEXT NOT NULL,
 	offset INTEGER NOT NULL,
 	size INTEGER NOT NULL,
-    FOREIGN KEY (dataset_id) REFERENCES datasets(id)
+    FOREIGN KEY (dataset_id) REFERENCES datasets(id),
     FOREIGN KEY (gene_id) REFERENCES genes(id)
 );
 """
@@ -178,10 +178,10 @@ for root, dirs, files in os.walk(dir):
         if filename == "dataset.db":
             relative_dir = root.replace(dir, "")[1:]
 
-            # species, platform, dataset = relative_dir.split("/")
+            # genome, platform, dataset = relative_dir.split("/")
 
             # filepath = os.path.join(root, filename)
-            # print(root, filename, relative_dir, platform, species, dataset,)
+            # print(root, filename, relative_dir, platform, genome, dataset,)
 
             path = os.path.join(root, filename)
 
@@ -203,7 +203,7 @@ for root, dirs, files in os.walk(dir):
 
             # Execute a query to fetch data
             cursor2.execute(
-                "SELECT uuid, name, institution, species, assembly, description FROM dataset"
+                "SELECT public_id, name, institution, genome, assembly, description FROM dataset"
             )
 
             # Fetch all results
@@ -211,18 +211,18 @@ for root, dirs, files in os.walk(dir):
 
             row = {
                 "id": dataset_id,
-                "uuid": row["uuid"],
+                "public_id": row["public_id"],
                 "name": row["name"],
                 "institution": row["institution"],
-                "species": row["species"],
+                "genome": row["genome"],
                 "assembly": row["assembly"],
                 "description": row["description"],
                 "cells": cells,
             }
 
             cursor.executemany(
-                f"""INSERT INTO datasets (id, uuid, name, institution, species, assembly, description, cells) VALUES 
-                (:id, :uuid, :name, :institution, :species, :assembly, :description, :cells);""",
+                f"""INSERT INTO datasets (id, public_id, name, institution, genome, assembly, description, cells) VALUES 
+                (:id, :public_id, :name, :institution, :genome, :assembly, :description, :cells);""",
                 [row],
             )
 
@@ -236,7 +236,7 @@ for root, dirs, files in os.walk(dir):
             # Insert samples
             #
 
-            cursor2.execute("SELECT uuid, name FROM samples")
+            cursor2.execute("SELECT public_id, name FROM samples")
 
             row = cursor2.fetchall()
 
@@ -245,15 +245,15 @@ for root, dirs, files in os.walk(dir):
             for sample in row:
                 data.append(
                     {
-                        "uuid": sample["uuid"],
+                        "public_id": sample["public_id"],
                         "dataset_id": dataset_id,
                         "name": sample["name"],
                     }
                 )
 
             cursor.executemany(
-                f"""INSERT INTO samples (uuid, dataset_id, name) VALUES 
-                (:uuid, :dataset_id, :name);""",
+                f"""INSERT INTO samples (public_id, dataset_id, name) VALUES 
+                (:public_id, :dataset_id, :name);""",
                 data,
             )
 
@@ -261,7 +261,9 @@ for root, dirs, files in os.walk(dir):
             # Insert clusters
             #
 
-            cursor2.execute("SELECT uuid, label, name, cell_count, color FROM clusters")
+            cursor2.execute(
+                "SELECT public_id, label, name, cell_count, color FROM clusters"
+            )
 
             row = cursor2.fetchall()
 
@@ -269,7 +271,7 @@ for root, dirs, files in os.walk(dir):
             for cluster in row:
                 data.append(
                     {
-                        "uuid": cluster["uuid"],
+                        "public_id": cluster["public_id"],
                         "dataset_id": dataset_id,
                         "label": cluster["label"],
                         "name": cluster["name"],
@@ -279,8 +281,8 @@ for root, dirs, files in os.walk(dir):
                 )
 
             cursor.executemany(
-                f"""INSERT INTO clusters (uuid, dataset_id, label, name, cell_count, color) VALUES 
-                (:uuid, :dataset_id, :label, :name, :cell_count, :color);""",
+                f"""INSERT INTO clusters (public_id, dataset_id, label, name, cell_count, color) VALUES 
+                (:public_id, :dataset_id, :label, :name, :cell_count, :color);""",
                 data,
             )
 
@@ -289,28 +291,28 @@ for root, dirs, files in os.walk(dir):
             #
 
             cursor2.execute(
-                "SELECT uuid, name FROM metadata",
+                "SELECT public_id, name FROM metadata",
             )
 
             row = cursor2.fetchall()
 
             metadata_id_map = {}
             for metadata in row:
-                if metadata["uuid"] not in metadata_map:
+                if metadata["public_id"] not in metadata_map:
 
-                    metadata_map[metadata["uuid"]] = {
+                    metadata_map[metadata["public_id"]] = {
                         "id": len(metadata_map) + 1,
-                        "uuid": metadata["uuid"],
+                        "public_id": metadata["public_id"],
                         "name": metadata["name"],
                     }
 
                     cursor.execute(
-                        f"""INSERT INTO metadata (id, uuid, name) VALUES 
-                        ({metadata_map[metadata["uuid"]]["id"]}, '{metadata["uuid"]}', '{metadata["name"]}');"""
+                        f"""INSERT INTO metadata (id, public_id, name) VALUES 
+                        ({metadata_map[metadata["public_id"]]["id"]}, '{metadata["public_id"]}', '{metadata["name"]}');"""
                     )
 
             cursor2.execute(
-                f"""SELECT cm.cluster_id, m.uuid, cm.value 
+                f"""SELECT cm.cluster_id, m.public_id, cm.value 
                 FROM cluster_metadata cm
                 JOIN metadata m ON m.id = cm.metadata_id
                 """
@@ -321,7 +323,7 @@ for root, dirs, files in os.walk(dir):
             data = []
             for cluster_metadata in row:
                 cluster_id = cluster_metadata["cluster_id"]
-                metadata_id = metadata_map[cluster_metadata["uuid"]]["id"]
+                metadata_id = metadata_map[cluster_metadata["public_id"]]["id"]
                 value = cluster_metadata["value"]
 
                 data.append(
@@ -343,7 +345,7 @@ for root, dirs, files in os.walk(dir):
             #
 
             cursor2.execute(
-                "SELECT uuid, ensembl_id, gene_symbol, file, offset, size FROM gex"
+                "SELECT public_id, ensembl_id, gene_symbol, file, offset, size FROM gex"
             )
             row = cursor2.fetchall()
             data = []
@@ -354,19 +356,19 @@ for root, dirs, files in os.walk(dir):
                     gene_uuid = str(uuid.uuid7())
                     gene_map[gene_id] = {
                         "id": len(gene_map) + 1,
-                        "uuid": gene_uuid,
+                        "public_id": gene_uuid,
                         "gene_id": gene_id,
                         "gene_symbol": gex["gene_symbol"],
                     }
 
                     cursor.execute(
-                        f"""INSERT INTO genes (id, uuid, gene_id, gene_symbol) VALUES 
+                        f"""INSERT INTO genes (id, public_id, gene_id, gene_symbol) VALUES 
                         ({gene_map[gene_id]["id"]}, '{gene_uuid}', '{gene_id}', '{gex["gene_symbol"]}');"""
                     )
 
                 data.append(
                     {
-                        "uuid": gex["uuid"],
+                        "public_id": gex["public_id"],
                         "dataset_id": dataset_id,
                         "gene_id": gene_map[gene_id]["id"],
                         "url": os.path.join(gex_path, gex["file"]),
@@ -376,8 +378,8 @@ for root, dirs, files in os.walk(dir):
                 )
 
             cursor.executemany(
-                f"""INSERT INTO gex (uuid, dataset_id, gene_id, url, offset, size) VALUES 
-                (:uuid, :dataset_id, :gene_id, :url, :offset, :size);""",
+                f"""INSERT INTO gex (public_id, dataset_id, gene_id, url, offset, size) VALUES 
+                (:public_id, :dataset_id, :gene_id, :url, :offset, :size);""",
                 data,
             )
 
@@ -385,14 +387,14 @@ for root, dirs, files in os.walk(dir):
             # Insert cells
             #
             cursor2.execute(
-                "SELECT uuid, sample_id, cluster_id, barcode, umap_x, umap_y FROM cells"
+                "SELECT public_id, sample_id, cluster_id, barcode, umap_x, umap_y FROM cells"
             )
             row = cursor2.fetchall()
             data = []
             for cell in row:
                 data.append(
                     {
-                        "uuid": cell["uuid"],
+                        "public_id": cell["public_id"],
                         "sample_id": cell["sample_id"],
                         "cluster_id": cell["cluster_id"],
                         "barcode": cell["barcode"],
@@ -401,8 +403,8 @@ for root, dirs, files in os.walk(dir):
                     }
                 )
             cursor.executemany(
-                f"""INSERT INTO cells (uuid, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES 
-                (:uuid, :sample_id, :cluster_id, :barcode, :umap_x, :umap_y);""",
+                f"""INSERT INTO cells (public_id, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES 
+                (:public_id, :sample_id, :cluster_id, :barcode, :umap_x, :umap_y);""",
                 data,
             )
 
@@ -430,7 +432,7 @@ cursor.execute(
 )
 
 cursor.execute(
-    f""" CREATE INDEX datasets_species_idx ON datasets (species, assembly);
+    f""" CREATE INDEX datasets_genome_idx ON datasets (genome, assembly);
 """
 )
 

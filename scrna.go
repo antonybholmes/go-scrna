@@ -108,10 +108,10 @@ const (
 	// 	ORDER BY gex_value_types.id`
 
 	DatasetsSql = `SELECT DISTINCT
-		d.uuid,
+		d.public_id,
 		d.name,
 		d.institution,
-		d.species,
+		d.genome,
 		d.assembly,
 		d.cells,
 		d.description
@@ -120,7 +120,7 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>> 
-			AND d.species = :species AND d.assembly = :assembly
+			AND d.genome = :genome AND d.assembly = :assembly
 		ORDER BY d.name`
 
 	// DatasetsPermissionsSql = `SELECT DISTINCT
@@ -141,10 +141,10 @@ const (
 	// 	WHERE datasets.dataset_id = :id`
 
 	DatasetSql = `SELECT 
-		d.uuid,
+		d.public_id,
 		d.name,
 		d.institution,
-		d.species,
+		d.genome,
 		d.assembly,
 		d.cells,
 		d.description
@@ -153,7 +153,7 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>>
-			AND d.uuid = :id`
+			AND d.public_id = :id`
 
 	FindGenesSql = `SELECT 
 		gx.id, 
@@ -169,7 +169,7 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>>
-			AND d.uuid = :id 
+			AND d.public_id = :id 
 			AND (g.gene_id IN (<<GENES>>) OR g.gene_symbol IN (<<GENES>>))`
 
 	SearchGenesSql = ` SELECT 
@@ -183,13 +183,13 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>>
-			AND d.uuid = :id 
+			AND d.public_id = :id 
 			AND (<<GENES>>)
 		ORDER BY g.gene_symbol 
 		LIMIT :limit`
 
 	ClustersSql = `SELECT DISTINCT 
-		c.uuid,
+		c.public_id,
 		c.label,
 		c.name,
 		c.cell_count,
@@ -204,7 +204,7 @@ const (
 		JOIN metadata m ON cm.metadata_id = m.id
 		WHERE
 			<<PERMISSIONS>>
-			AND d.uuid = :id
+			AND d.public_id = :id
 		ORDER BY c.name, m.name`
 
 	CellsSql = `SELECT
@@ -216,7 +216,7 @@ const (
 		JOIN samples s ON c.sample_id = s.id
 		JOIN clusters cl ON c.cluster_id = cl.id
 		JOIN datasets d ON s.dataset_id = d.id
-		WHERE d.uuid = :id
+		WHERE d.public_id = :id
 		ORDER BY c.id`
 
 	GenesSql = `SELECT 
@@ -226,7 +226,7 @@ const (
 		FROM gex gx
 		JOIN genes g ON gx.gene_id = g.id
 		JOIN datasets d ON gx.dataset_id = d.id
-		WHERE d.uuid = :id
+		WHERE d.public_id = :id
 		ORDER BY g.gene_symbol`
 )
 

@@ -123,12 +123,13 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 func ScrnaDatasetsRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		species := c.Param("species")
+		genome := c.Param("genome")
 		assembly := c.Param("assembly")
 
-		// Get the datasets the user has permission to view
-		datasets, err := scrnadbcache.Datasets(species, assembly, isAdmin, user.Permissions)
+		log.Debug().Msgf("params %v %v ", genome, assembly)
 
+		// Get the datasets the user has permission to view
+		datasets, err := scrnadbcache.Datasets(genome, assembly, isAdmin, user.Permissions)
 		if err != nil {
 			c.Error(err)
 			return

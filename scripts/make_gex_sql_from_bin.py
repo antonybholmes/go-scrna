@@ -21,7 +21,7 @@ DAT_OFFSET = 1 + 4 + DAT_INDEX_SIZE
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
 parser.add_argument("-i", "--institution", help="institution")
-parser.add_argument("-s", "--species", help="species", default="Human")
+parser.add_argument("-g", "--genome", help="genome", default="Human")
 parser.add_argument("-a", "--assembly", help="assembly", default="GRCh38")
 parser.add_argument("-d", "--dir", help="dir")
 parser.add_argument("-c", "--cells", help="cells")
@@ -31,7 +31,7 @@ args = parser.parse_args()
 dir = args.dir
 name = args.name
 institution = args.institution
-species = args.species
+genome = args.genome
 assembly = args.assembly
 gex_dir = os.path.join(dir, "gex")
 
@@ -82,10 +82,10 @@ cursor.execute("BEGIN TRANSACTION;")
 cursor.execute(
     f""" CREATE TABLE dataset (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL, 
 	institution TEXT NOT NULL, 
-	species TEXT NOT NULL, 
+	genome TEXT NOT NULL, 
 	assembly TEXT NOT NULL,
 	description TEXT NOT NULL DEFAULT '',
 	cells INTEGER NOT NULL,
@@ -98,7 +98,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE samples (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	dataset_id INTEGER NOT NULL,
 	name TEXT NOT NULL UNIQUE,
 	FOREIGN KEY(dataset_id) REFERENCES dataset(id)
@@ -119,7 +119,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE metadata (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
 	description TEXT NOT NULL DEFAULT '');
 """
@@ -128,7 +128,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE clusters (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
     label INTEGER NOT NULL UNIQUE,
 	name TEXT NOT NULL UNIQUE,
 	cell_count INTEGER NOT NULL,
@@ -152,7 +152,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE cells (
     id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	sample_id INTEGER NOT NULL,
     cluster_id INTEGER NOT NULL, 
 	barcode	TEXT NOT NULL, 
@@ -169,7 +169,7 @@ cursor.execute(
 cursor.execute(
     f""" CREATE TABLE gex (
 	id INTEGER PRIMARY KEY,
-    uuid TEXT NOT NULL UNIQUE,
+    public_id TEXT NOT NULL UNIQUE,
 	ensembl_id TEXT NOT NULL,
 	gene_symbol TEXT NOT NULL, 
 	file TEXT NOT NULL,
@@ -188,7 +188,7 @@ dataset_id = uuid.uuid7()  # = generate("0123456789abcdefghijklmnopqrstuvwxyz", 
 
 
 cursor.execute(
-    f"INSERT INTO dataset (id, uuid, name, institution, species, assembly, cells, dir) VALUES (1, '{dataset_id}', '{name}', '{institution}', '{species}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
+    f"INSERT INTO dataset (id, public_id, name, institution, genome, assembly, cells, dir) VALUES (1, '{dataset_id}', '{name}', '{institution}', '{genome}', '{assembly}', {df_cells.shape[0]}, '{dir}');",
 )
 
 
@@ -196,7 +196,7 @@ sample_map = {}
 for i, sample in enumerate(sorted(df_cells["Sample"].unique())):
     sample_id = uuid.uuid7()  # generate("0123456789abcdefghijklmnopqrstuvwxyz", 12)
     cursor.execute(
-        f"INSERT INTO samples (id, uuid, dataset_id, name) VALUES ({i + 1}, '{sample_id}', 1, '{sample}');",
+        f"INSERT INTO samples (id, public_id, dataset_id, name) VALUES ({i + 1}, '{sample_id}', 1, '{sample}');",
     )
     sample_map[sample] = {"uuid": sample_id, "index": i + 1}
 
@@ -210,7 +210,7 @@ for idx, (cluster, row) in enumerate(df_clusters.iterrows()):
     # row name is the cluster label, a number
     label = int(row.name)
     cursor.execute(
-        f"INSERT INTO clusters (id, uuid, label, name, cell_count, color) VALUES ({idx + 1}, '{cluster_id}', {label}, '{cluster}',  {counts[idx]}, '{row["Color"]}');",
+        f"INSERT INTO clusters (id, public_id, label, name, cell_count, color) VALUES ({idx + 1}, '{cluster_id}', {label}, '{cluster}',  {counts[idx]}, '{row["Color"]}');",
     )
 
 cursor.execute("COMMIT;")
@@ -234,7 +234,7 @@ for i, name in enumerate(metadata_types):
     metadata_type_id = metadata_type_map[name]["uuid"]
     idx = metadata_type_map[name]["index"]
     cursor.execute(
-        f"INSERT INTO metadata (id, uuid, name) VALUES ({idx}, '{metadata_type_id}',  '{name}');",
+        f"INSERT INTO metadata (id, public_id, name) VALUES ({idx}, '{metadata_type_id}',  '{name}');",
     )
 
 
@@ -263,7 +263,7 @@ cursor.execute("BEGIN TRANSACTION;")
 for i, row in df_cells.iterrows():
     cell_id = uuid.uuid7()
     cursor.execute(
-        f"INSERT INTO cells (uuid, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', {sample_map[row["Sample"]]["index"]}, {cluster_id_map[row["Cluster"]]["index"]}, '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
+        f"INSERT INTO cells (public_id, sample_id, cluster_id, barcode, umap_x, umap_y) VALUES ('{cell_id}', {sample_map[row["Sample"]]["index"]}, {cluster_id_map[row["Cluster"]]["index"]}, '{row["Barcode"]}', {row["UMAP-1"]}, {row["UMAP-2"]});",
     )
 
 cursor.execute("COMMIT;")
@@ -333,7 +333,7 @@ for f in sorted(os.listdir(gex_dir)):
                 # log the offset and size in the db so we can search
                 # for a gene and then know where to find it in the file
                 cursor.execute(
-                    f"INSERT INTO gex (uuid, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
+                    f"INSERT INTO gex (public_id, ensembl_id, gene_symbol, file, offset, size) VALUES ('{gex_id}', '{ensembl_id}', '{gene_symbol}', '{f}', {dat_offset}, {size});",
                 )
 
                 # size does not include the 4 bytes of size itself
