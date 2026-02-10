@@ -120,7 +120,7 @@ const (
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>> 
-			AND d.genome = :genome AND d.assembly = :assembly
+			AND LOWER(d.assembly) = :assembly
 		ORDER BY d.name`
 
 	// DatasetsPermissionsSql = `SELECT DISTINCT
@@ -338,10 +338,9 @@ func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
 	return assemblies, nil
 }
 
-func (sdb *ScrnaDB) Datasets(genome string, assembly string, isAdmin bool, permissions []string) ([]*Dataset, error) {
+func (sdb *ScrnaDB) Datasets(assembly string, isAdmin bool, permissions []string) ([]*Dataset, error) {
 
-	namedArgs := []any{sql.Named("genome", genome),
-		sql.Named("assembly", assembly)}
+	namedArgs := []any{sql.Named("assembly", strings.ToLower(assembly))}
 
 	query := sqlite.MakePermissionsSql(DatasetsSql, isAdmin, permissions, &namedArgs)
 
@@ -460,13 +459,14 @@ func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string
 func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin bool, permissions []string) ([]*Gene, error) {
 
 	namedArgs := []any{sql.Named("id", datasetId),
-		sql.Named("q", fmt.Sprintf("%%%s%%", q)),
+		//sql.Named("q", fmt.Sprintf("%%%s%%", q)),
 		sql.Named("limit", limit)}
 
 	stmt := sqlite.MakePermissionsSql(SearchGenesSql, isAdmin, permissions, &namedArgs)
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
-		return query.AddParens("g.gene_id LIKE :q OR g.gene_symbol LIKE :q", addParens)
+		log.Debug().Msgf("search gene q: %s %s", q, value)
+		return query.AddParens("g.gene_id = '"+value+"' OR g.gene_symbol LIKE '"+value+"'", addParens)
 	})
 
 	if err != nil {
@@ -475,7 +475,7 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 
 	stmt = strings.Replace(stmt, "<<GENES>>", where.Sql, 1)
 
-	//log.Debug().Msgf("finalSQL %s", finalSQL)
+	log.Debug().Msgf("finalSQL %s", stmt)
 
 	ret := make([]*Gene, 0, limit)
 
@@ -511,11 +511,11 @@ func (sdb *ScrnaDB) FindGenes(datasetId string, geneIds []string, isAdmin bool, 
 
 	query := sqlite.MakePermissionsSql(FindGenesSql, isAdmin, permissions, &namedArgs)
 
-	log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
+	//log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
 
 	query = makeInGenesSql(query, geneIds, &namedArgs)
 
-	log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
+	//log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
 
 	rows, err := sdb.db.Query(query, namedArgs...)
 
@@ -555,11 +555,10 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 	genes, err := sdb.FindGenes(datasetId, geneIds, isAdmin, permissions)
 
 	if err != nil {
-		log.Error().Msgf("finding genes: %s", err)
 		return nil, err
 	}
 
-	log.Debug().Msgf("found %d genes", len(genes))
+	//log.Debug().Msgf("found %d genes", len(genes))
 
 	//datasetUrl := filepath.Dir(dsdb.dataset.Url)
 

@@ -123,13 +123,22 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 func ScrnaDatasetsRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		genome := c.Param("genome")
-		assembly := c.Param("assembly")
+		// genome := c.Query("genome")
 
-		log.Debug().Msgf("params %v %v ", genome, assembly)
+		// if genome == "" {
+		// 	c.Error(errors.New("missing genome"))
+		// 	return
+		// }
+
+		assembly := c.Query("assembly")
+
+		if assembly == "" {
+			c.Error(errors.New("missing assembly"))
+			return
+		}
 
 		// Get the datasets the user has permission to view
-		datasets, err := scrnadbcache.Datasets(genome, assembly, isAdmin, user.Permissions)
+		datasets, err := scrnadbcache.Datasets(assembly, isAdmin, user.Permissions)
 		if err != nil {
 			c.Error(err)
 			return
@@ -143,7 +152,7 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 func ScrnaGexRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		datasetId := c.Param("id")
+		datasetId := c.Param("dataset")
 
 		if datasetId == "" {
 			c.Error(errors.New("missing id"))
@@ -192,10 +201,10 @@ func ScrnaGexRoute(c *gin.Context) {
 func ScrnaMetadataRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		datasetId := c.Param("id")
+		datasetId := c.Param("dataset")
 
 		if datasetId == "" {
-			c.Error(errors.New("missing id"))
+			c.Error(errors.New("missing dataset id"))
 			return
 		}
 
@@ -213,10 +222,10 @@ func ScrnaMetadataRoute(c *gin.Context) {
 func ScrnaGenesRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		datasetId := c.Param("id")
+		datasetId := c.Param("dataset")
 
 		if datasetId == "" {
-			c.Error(errors.New("missing id"))
+			c.Error(errors.New("missing dataset id"))
 			return
 		}
 
@@ -234,7 +243,7 @@ func ScrnaGenesRoute(c *gin.Context) {
 func ScrnaSearchGenesRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		datasetId := c.Param("id")
+		datasetId := c.Param("dataset")
 
 		if datasetId == "" {
 			c.Error(errors.New("id missing"))

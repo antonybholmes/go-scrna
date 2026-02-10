@@ -36,8 +36,8 @@ func Assemblies(genome string) ([]string, error) {
 	return instance.Assemblies(genome)
 }
 
-func Datasets(genome string, assembly string, isAdmin bool, permissions []string) ([]*scrna.Dataset, error) {
-	return instance.Datasets(genome, assembly, isAdmin, permissions)
+func Datasets(assembly string, isAdmin bool, permissions []string) ([]*scrna.Dataset, error) {
+	return instance.Datasets(assembly, isAdmin, permissions)
 }
 
 func Gex(datasetId string, geneIds []string, isAdmin bool, permissions []string) (*dat.GexResults, error) {
