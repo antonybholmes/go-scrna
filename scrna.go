@@ -11,6 +11,7 @@ import (
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
+	"github.com/antonybholmes/go-web"
 	"github.com/antonybholmes/go-web/auth/sqlite"
 )
 
@@ -135,16 +136,21 @@ const (
 
 	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
 
-	SpeciesSQL = `SELECT DISTINCT
-		species,
-		FROM datasets
-		ORDER BY species`
+	GenomesSQL = `SELECT DISTINCT
+		g.id,
+		g.public_id,
+		g.name
+		FROM genomes g
+		ORDER BY g.name`
 
 	AssembliesSql = `SELECT
-		datasets.assembly
-		FROM datasets
-		WHERE datasets.species = :species
-		ORDER BY datasets.assembly`
+		a.id,
+		a.public_id,
+		a.name
+		FROM assemblies a
+		JOIN genomes g ON a.genome_id = g.id
+		WHERE g.public_id = :genome OR LOWER(g.name) = :genome
+		ORDER BY a.name`
 
 	AllTechnologiesSql = `SELECT DISTINCT
 		species, technology, platform 
@@ -173,8 +179,8 @@ const (
 		d.cells,
 		d.description
 		FROM datasets d
-		JOIN genomes g ON d.genome_id = g.id
 		JOIN assemblies a ON d.assembly_id = a.id
+		JOIN genomes g ON a.genome_id = g.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
@@ -344,11 +350,11 @@ func (sdb *ScrnaDB) Close() error {
 // 	return ret, nil
 // }
 
-func (sdb *ScrnaDB) Genomes() ([]string, error) {
+func (sdb *ScrnaDB) Genomes() ([]*sys.Entity, error) {
 
-	species := make([]string, 0, 10)
+	genomes := make([]*sys.Entity, 0, 10)
 
-	rows, err := sdb.db.Query(SpeciesSQL)
+	rows, err := sdb.db.Query(GenomesSQL)
 
 	if err != nil {
 		return nil, err
@@ -357,26 +363,25 @@ func (sdb *ScrnaDB) Genomes() ([]string, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var name string
+		var genome sys.Entity
 
-		err := rows.Scan(
-			&name)
+		err := rows.Scan(&genome.Id, &genome.PublicId, &genome.Name)
 
 		if err != nil {
 			return nil, err
 		}
 
-		species = append(species, name)
+		genomes = append(genomes, &genome)
 	}
 
-	return species, nil
+	return genomes, nil
 }
 
-func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
+func (sdb *ScrnaDB) Assemblies(genome string) ([]*sys.Entity, error) {
 
-	assemblies := make([]string, 0, 10)
+	assemblies := make([]*sys.Entity, 0, 10)
 
-	rows, err := sdb.db.Query(AssembliesSql, sql.Named("species", species))
+	rows, err := sdb.db.Query(AssembliesSql, sql.Named("genome", web.FormatParam(genome)))
 
 	if err != nil {
 		return nil, err
@@ -385,16 +390,15 @@ func (sdb *ScrnaDB) Assemblies(species string) ([]string, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var name string
+		var assembly sys.Entity
 
-		err := rows.Scan(
-			&name)
+		err := rows.Scan(&assembly.Id, &assembly.PublicId, &assembly.Name)
 
 		if err != nil {
 			return nil, err
 		}
 
-		assemblies = append(assemblies, name)
+		assemblies = append(assemblies, &assembly)
 	}
 
 	return assemblies, nil

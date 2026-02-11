@@ -184,15 +184,18 @@ cursor.execute(
     CREATE TABLE assemblies (
         id INTEGER PRIMARY KEY,
         public_id TEXT NOT NULL UNIQUE,
-        name TEXT NOT NULL UNIQUE);
+        genome_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        UNIQUE(genome_id, name),
+        FOREIGN KEY(genome_id) REFERENCES genomes(id));
     """,
 )
 
 cursor.execute(
-    f"INSERT INTO assemblies (id, public_id, name) VALUES (1, '{uuid.uuid7()}', 'GRCh38');"
+    f"INSERT INTO assemblies (id, public_id, genome_id, name) VALUES (1, '{uuid.uuid7()}', 1, 'GRCh38');"
 )
 cursor.execute(
-    f"INSERT INTO assemblies (id, public_id, name) VALUES (2, '{uuid.uuid7()}', 'GRCm39');"
+    f"INSERT INTO assemblies (id, public_id, genome_id, name) VALUES (2, '{uuid.uuid7()}', 2, 'GRCm39');"
 )
 
 assemblies_map = {"GRCh38": 1, "GRCm39": 2}
@@ -247,14 +250,12 @@ cursor.execute(
     f""" CREATE TABLE datasets (
 	id INTEGER PRIMARY KEY,
     public_id TEXT NOT NULL UNIQUE,
-	genome_id INTEGER NOT NULL, 
 	assembly_id INTEGER NOT NULL,
     name TEXT NOT NULL, 
 	institution TEXT NOT NULL, 
 	cells INTEGER NOT NULL,
     description TEXT NOT NULL DEFAULT '',
     tags TEXT NOT NULL DEFAULT '',
-	FOREIGN KEY(genome_id) REFERENCES genomes(id),
 	FOREIGN KEY(assembly_id) REFERENCES assemblies(id)
 );
 """
@@ -453,10 +454,9 @@ for di, dataset in enumerate(datasets):
     cursor.execute("BEGIN TRANSACTION;")
 
     cursor.execute(
-        f"""INSERT INTO datasets (id, public_id, genome_id, assembly_id, name, institution, cells) VALUES (
+        f"""INSERT INTO datasets (id, public_id,  assembly_id, name, institution, cells) VALUES (
             {dataset_index}, 
             '{dataset_id}', 
-            {genome_map[dataset["genome"]]}, 
             {assemblies_map[dataset["assembly"]]},
             '{dataset["name"]}', 
             '{dataset["institution"]}',

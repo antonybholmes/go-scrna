@@ -5,6 +5,7 @@ import (
 
 	"github.com/antonybholmes/go-scrna"
 	"github.com/antonybholmes/go-scrna/dat"
+	"github.com/antonybholmes/go-sys"
 )
 
 var (
@@ -28,11 +29,11 @@ func Dir() string {
 	return instance.Dir()
 }
 
-func Genomes() ([]string, error) {
+func Genomes() ([]*sys.Entity, error) {
 	return instance.Genomes()
 }
 
-func Assemblies(genome string) ([]string, error) {
+func Assemblies(genome string) ([]*sys.Entity, error) {
 	return instance.Assemblies(genome)
 }
 
@@ -52,9 +53,9 @@ func Metadata(datasetId string, isAdmin bool, permissions []string) (*scrna.Data
 	return instance.Metadata(datasetId, isAdmin, permissions)
 }
 
-func Genes(datasetId string, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
-	return instance.Genes(datasetId, isAdmin, permissions)
-}
+// func Genes(datasetId string, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
+// 	return instance.Genes(datasetId, isAdmin, permissions)
+// }
 
 func SearchGenes(id string, query string, limit int, isAdmin bool, permissions []string) ([]*scrna.Gene, error) {
 	return instance.SearchGenes(id, query, limit, isAdmin, permissions)
