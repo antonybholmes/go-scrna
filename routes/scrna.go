@@ -219,26 +219,26 @@ func ScrnaMetadataRoute(c *gin.Context) {
 	})
 }
 
-func ScrnaGenesRoute(c *gin.Context) {
-	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
+// func ScrnaGenesRoute(c *gin.Context) {
+// 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
 
-		datasetId := c.Param("dataset")
+// 		datasetId := c.Param("dataset")
 
-		if datasetId == "" {
-			c.Error(errors.New("missing dataset id"))
-			return
-		}
+// 		if datasetId == "" {
+// 			c.Error(errors.New("missing dataset id"))
+// 			return
+// 		}
 
-		ret, err := scrnadbcache.Genes(datasetId, isAdmin, user.Permissions)
+// 		ret, err := scrnadbcache.Genes(datasetId, isAdmin, user.Permissions)
 
-		if err != nil {
-			c.Error(err)
-			return
-		}
+// 		if err != nil {
+// 			c.Error(err)
+// 			return
+// 		}
 
-		web.MakeDataResp(c, "", ret)
-	})
-}
+// 		web.MakeDataResp(c, "", ret)
+// 	})
+// }
 
 func ScrnaSearchGenesRoute(c *gin.Context) {
 	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {

@@ -1,15 +1,16 @@
 import argparse
 import gzip
 import json
-from os import path
 import os
-from nanoid import generate
-import pandas as pd
-from scipy import sparse
-import numpy as np
-import sys
-import msgpack
 import struct
+import sys
+from os import path
+
+import msgpack
+import numpy as np
+import pandas as pd
+from nanoid import generate
+from scipy import sparse
 
 VERSION = 1
 
@@ -231,7 +232,16 @@ for line in f:
     gene_symbol_bytes = symbol.encode("utf-8")
     num_values = len(idx)
     total_length = (
-        2 + len(gene_id_bytes) + 2 + len(gene_symbol_bytes) + 4 + num_values * 8
+        4  # size of total length field itself
+        + 2  # size of gene_id string length field
+        + len(gene_id_bytes)  # size of gene_id string
+        + 2  # size of gene_symbol string length field
+        + len(gene_symbol_bytes)  # size of gene_symbol string
+        + 4  # number of index,value pairs to read
+        + num_values
+        * (
+            4 + 4
+        )  # size of index and value pairs (4 bytes for index, 4 bytes for value)
     )
 
     # print(total_length)
@@ -272,10 +282,6 @@ for line in f:
         #     json.dump(genes, f)
 
         print(f"block {block} with {genes} genes")
-
-        size = struct.unpack_from("<I", buf, 0)[0]
-
-        print("First gene size in block:", size)
 
         # sys.exit(0)
 

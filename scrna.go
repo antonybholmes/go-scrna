@@ -35,11 +35,66 @@ type (
 	// 	GEX_TYPE_RNA_MICROARRAY GexType = "Microarray"
 	//)
 
+	Dataset struct {
+		Id       string `json:"id"`
+		Name     string `json:"name"`
+		Species  string `json:"species"`
+		Assembly string `json:"assembly"`
+		//Url         string `json:"-"`
+		Institution string `json:"institution"`
+		Description string `json:"description"`
+		Cells       int    `json:"cells"`
+	}
+
 	Sample struct {
 		Id       string          `json:"id"`
 		Name     string          `json:"name"`
 		AltNames []string        `json:"altNames"`
 		Metadata []NameValueType `json:"metadata"`
+	}
+
+	Gene struct {
+		Id         string `json:"id"`
+		Ensembl    string `json:"geneId"`
+		GeneSymbol string `json:"geneSymbol"`
+		Url        string `json:"-"`
+		Offset     int64  `json:"-"`
+		Size       int64  `json:"-"`
+	}
+
+	ClusterMetadata struct {
+		//Id          string `json:"-"`
+		Name        string `json:"name"`
+		Value       string `json:"value"`
+		Description string `json:"description,omitempty"`
+		//Color       string `json:"color,omitempty"`
+	}
+
+	Cluster struct {
+		Metadata  map[string]string `json:"metadata,omitempty"`
+		Id        string            `json:"id"`
+		Color     string            `json:"color"`
+		Name      string            `json:"name"`
+		Label     int               `json:"label"`
+		CellCount int               `json:"cells"`
+	}
+
+	Pos struct {
+		X float64 `json:"x"`
+		Y float64 `json:"y"`
+	}
+
+	SingleCell struct {
+		SampleName string `json:"sampleName"`
+		Barcode    string `json:"barcode,omitempty"`
+		Pos
+		ClusterLabel int `json:"clusterLabel"`
+	}
+
+	DatasetMetadata struct {
+		Dataset  string        `json:"dataset"`
+		Clusters []*Cluster    `json:"clusters"`
+		Cells    []*SingleCell `json:"cells"`
 	}
 
 	//  RNASeqGex struct {
@@ -78,6 +133,8 @@ type (
 const (
 	DatasetSize = 500
 
+	CellCountSql = `SELECT COUNT(cells.id) FROM cells`
+
 	SpeciesSQL = `SELECT DISTINCT
 		species,
 		FROM datasets
@@ -111,16 +168,18 @@ const (
 		d.public_id,
 		d.name,
 		d.institution,
-		d.genome,
-		d.assembly,
+		g.name AS genome,
+		a.name AS assembly,
 		d.cells,
 		d.description
 		FROM datasets d
+		JOIN genomes g ON d.genome_id = g.id
+		JOIN assemblies a ON d.assembly_id = a.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>> 
-			AND LOWER(d.assembly) = :assembly
+			AND LOWER(a.name) = :assembly
 		ORDER BY d.name`
 
 	// DatasetsPermissionsSql = `SELECT DISTINCT
@@ -144,11 +203,13 @@ const (
 		d.public_id,
 		d.name,
 		d.institution,
-		d.genome,
-		d.assembly,
+		g.name AS genome,
+		a.name AS assembly,
 		d.cells,
 		d.description
 		FROM datasets d
+		JOIN genomes g ON d.genome_id = g.id
+		JOIN assemblies a ON d.assembly_id = a.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
@@ -156,29 +217,30 @@ const (
 			AND d.public_id = :id`
 
 	FindGenesSql = `SELECT 
-		gx.id, 
-		g.gene_id,
+		e.id, 
+		g.public_id,
 		g.gene_symbol,
-		gx.url,
-		gx.offset,
-		gx.size
-		FROM gex gx
-		JOIN genes g ON gx.gene_id = g.id
-		JOIN datasets d ON gx.dataset_id = d.id
+		f.url,
+		e.offset,
+		e.size
+		FROM expression e
+		JOIN genes g ON e.gene_id = g.id
+		JOIN files f ON e.file_id = f.id
+		JOIN datasets d ON e.dataset_id = d.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
 			<<PERMISSIONS>>
 			AND d.public_id = :id 
-			AND (g.gene_id IN (<<GENES>>) OR g.gene_symbol IN (<<GENES>>))`
+			AND (g.public_id IN (<<GENES>>) OR g.ensembl IN (<<GENES>>) OR g.gene_symbol IN (<<GENES>>))`
 
 	SearchGenesSql = ` SELECT 
 		g.id, 
-		g.gene_id,
+		g.ensembl,
 		g.gene_symbol
-		FROM gex gx
-		JOIN genes g ON gx.gene_id = g.id
-		JOIN datasets d ON gx.dataset_id = d.id
+		FROM expression e
+		JOIN genes g ON e.gene_id = g.id
+		JOIN datasets d ON e.dataset_id = d.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
@@ -247,7 +309,7 @@ func NewScrnaDB(dir string) *ScrnaDB {
 
 	// defer db.Close()
 
-	return &ScrnaDB{dir: dir, db: sys.Must(sql.Open(sys.Sqlite3DB, filepath.Join(dir, "scrna.db?mode=ro")))}
+	return &ScrnaDB{dir: dir, db: sys.Must(sql.Open(sys.Sqlite3DB, filepath.Join(dir, "scrna.db"+sys.SqliteReadOnlySuffix)))}
 }
 
 func (sdb *ScrnaDB) Dir() string {
@@ -505,7 +567,7 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 	return ret, nil
 }
 
-func (sdb *ScrnaDB) FindGenes(datasetId string, geneIds []string, isAdmin bool, permissions []string) ([]*Gene, error) {
+func (sdb *ScrnaDB) GetGenes(datasetId string, geneIds []string, isAdmin bool, permissions []string) ([]*Gene, error) {
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
@@ -552,7 +614,7 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 	isAdmin bool,
 	permissions []string) (*dat.GexResults, error) {
 
-	genes, err := sdb.FindGenes(datasetId, geneIds, isAdmin, permissions)
+	genes, err := sdb.GetGenes(datasetId, geneIds, isAdmin, permissions)
 
 	if err != nil {
 		return nil, err
@@ -590,6 +652,7 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
 
 			if err != nil {
+				log.Debug().Msgf("not able to read gex data for gene %s in dataset %s", gene.GeneSymbol, datasetId)
 				return nil, err
 			}
 
@@ -818,5 +881,5 @@ func makeInGenesClause(geneIds []string, namedArgs *[]any) string {
 func makeInGenesSql(query string, geneIds []string, namedArgs *[]any) string {
 	inClause := makeInGenesClause(geneIds, namedArgs)
 
-	return strings.Replace(query, "<<GENES>>", inClause, 2)
+	return strings.ReplaceAll(query, "<<GENES>>", inClause)
 }

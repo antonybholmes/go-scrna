@@ -8,6 +8,7 @@ import (
 	"os"
 
 	"github.com/antonybholmes/go-scrna/dat"
+	"github.com/antonybholmes/go-sys/log"
 )
 
 // func ReadGexGeneFromDat(file string, index int) (*dat.GexGene, error) {
@@ -57,14 +58,14 @@ func SeekGexGeneFromDat(file string, offset int64) (*dat.GexGene, error) {
 
 	defer f.Close()
 
-	//log.Debug().Msgf("Seeking to position: %s %d", file, seek)
+	log.Debug().Msgf("Seeking to position: %s %d", file, offset)
 
-	var total uint32
-	binary.Read(io.NewSectionReader(f, offset, 4), binary.LittleEndian, &total)
+	var blockSize uint32
+	binary.Read(io.NewSectionReader(f, offset, 4), binary.LittleEndian, &blockSize)
 
 	// Allocate buffer for whole record
-	buf := make([]byte, total)
-	_, err = f.ReadAt(buf, offset+4) // after total_length
+	buf := make([]byte, blockSize)
+	_, err = f.ReadAt(buf, offset) // after total_length
 
 	if err != nil {
 		return nil, err
@@ -72,7 +73,7 @@ func SeekGexGeneFromDat(file string, offset int64) (*dat.GexGene, error) {
 
 	var record dat.GexGene
 
-	cur := 0
+	cur := 4 // skip total_length since we already have it
 
 	// key1
 	geneIdLen := int(binary.LittleEndian.Uint16(buf[cur:]))
@@ -85,6 +86,8 @@ func SeekGexGeneFromDat(file string, offset int64) (*dat.GexGene, error) {
 	cur += 2
 	record.GeneSymbol = string(buf[cur : cur+geneSymbolLen])
 	cur += geneSymbolLen
+
+	log.Debug().Msgf("Read gene: %s (%s) with total record size %d", record.GeneSymbol, record.GeneId, blockSize)
 
 	// values
 	// skip reading number of values since decode will handle that

@@ -436,13 +436,13 @@ cursor.execute(
 """
 )
 
-cursor.execute(
-    f""" CREATE INDEX dataset_permissions_dataset_permission_idx ON dataset_permissions (dataset_id, permission_id);
-"""
-)
+# cursor.execute(
+#     f""" CREATE INDEX dataset_permissions_dataset_permission_idx ON dataset_permissions (dataset_id, permission_id);
+# """
+# )
 
 cursor.execute(
-    f""" CREATE INDEX permissions_name_idx ON permissions (name);
+    f""" CREATE INDEX permissions_name_idx ON permissions (LOWER(name));
 """
 )
 
