@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	"github.com/antonybholmes/go-scrna/dat"
-	v2 "github.com/antonybholmes/go-scrna/dat/v2"
 	"github.com/antonybholmes/go-sys"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
@@ -223,16 +222,16 @@ const (
 			AND d.public_id = :id`
 
 	FindGenesSql = `SELECT 
-		e.id, 
+		gex.id, 
 		g.public_id,
 		g.gene_symbol,
 		f.url,
-		e.offset,
-		e.size
-		FROM expression e
-		JOIN genes g ON e.gene_id = g.id
-		JOIN files f ON e.file_id = f.id
-		JOIN datasets d ON e.dataset_id = d.id
+		gex.offset,
+		gex.size
+		FROM gex 
+		JOIN genes g ON gex.gene_id = g.id
+		JOIN files f ON gex.file_id = f.id
+		JOIN datasets d ON gex.dataset_id = d.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
@@ -244,9 +243,9 @@ const (
 		g.id, 
 		g.ensembl,
 		g.gene_symbol
-		FROM expression e
-		JOIN genes g ON e.gene_id = g.id
-		JOIN datasets d ON e.dataset_id = d.id
+		FROM gex gex
+		JOIN genes g ON gex.gene_id = g.id
+		JOIN datasets d ON gex.dataset_id = d.id
 		JOIN dataset_permissions dp ON d.id = dp.dataset_id
 		JOIN permissions p ON dp.permission_id = p.id
 		WHERE 
@@ -541,7 +540,7 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 
 	stmt = strings.Replace(stmt, "<<GENES>>", where.Sql, 1)
 
-	log.Debug().Msgf("finalSQL %s", stmt)
+	//log.Debug().Msgf("finalSQL %s", stmt)
 
 	ret := make([]*Gene, 0, limit)
 
@@ -638,45 +637,45 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 		Genes:   make([]*dat.GexGene, 0, len(genes)),
 	}
 
-	var gexCache = make(map[string]*dat.GexGene)
+	//var gexCache = make(map[string]*dat.GexGene)
 
 	for _, gene := range genes {
 		gexFile := filepath.Join(sdb.dir, gene.Url)
 
-		gexData, ok := gexCache[gexFile]
+		//gexData, ok := gexCache[gexFile]
 
-		if !ok {
+		//if !ok {
 
-			// f, err := os.Open(gexFile)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// defer f.Close()
+		// f, err := os.Open(gexFile)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// defer f.Close()
 
-			data, err := v2.SeekGexGeneFromDat(gexFile, gene.Offset)
+		data, err := dat.SeekGexGeneFromDat(gexFile, gene.Offset)
 
-			if err != nil {
-				log.Debug().Msgf("not able to read gex data for gene %s in dataset %s", gene.GeneSymbol, datasetId)
-				return nil, err
-			}
-
-			// Create gzip reader
-			// gz, err := gzip.NewReader(f)
-			// if err != nil {
-			// 	return nil, err
-			// }
-			// defer gz.Close()
-
-			// // Example 1: decode into a map (for JSON object)
-			// var data []GexFileDataGene
-
-			// if err := json.NewDecoder(gz).Decode(&data); err != nil {
-			// 	return nil, err
-			// }
-
-			gexCache[gexFile] = data
-			gexData = data
+		if err != nil {
+			//log.Debug().Msgf("not able to read gex data for gene %s in dataset %s", gene.GeneSymbol, datasetId)
+			return nil, err
 		}
+
+		// Create gzip reader
+		// gz, err := gzip.NewReader(f)
+		// if err != nil {
+		// 	return nil, err
+		// }
+		// defer gz.Close()
+
+		// // Example 1: decode into a map (for JSON object)
+		// var data []GexFileDataGene
+
+		// if err := json.NewDecoder(gz).Decode(&data); err != nil {
+		// 	return nil, err
+		// }
+
+		//gexCache[gexFile] = data
+		//gexData = data
+		//}
 
 		// find the index of our gene
 
@@ -709,7 +708,7 @@ func (sdb *ScrnaDB) Gex(datasetId string,
 		//log.Debug().Msgf("hmm %s %f %f", gexType, sample.Value, tpm)
 
 		//datasetResults.Samples = append(datasetResults.Samples, &sample)
-		ret.Genes = append(ret.Genes, gexData)
+		ret.Genes = append(ret.Genes, data)
 
 	}
 

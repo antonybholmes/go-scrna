@@ -220,10 +220,10 @@ genomes = ["Human", "Mouse"]
 
 genome_map = {"Human": 1, "Mouse": 2}
 
-for si, s in enumerate(genomes):
+for si, g in enumerate(genomes):
     genome_id = si + 1
-    for id in sorted(official_symbols[s.lower()]):
-        d = official_symbols[s.lower()][id]
+    for id in sorted(official_symbols[g.lower()]):
+        d = official_symbols[g.lower()][id]
 
         cursor.execute(
             f"INSERT INTO genes (id, public_id, genome_id, gene_id, ensembl, refseq, ncbi, gene_symbol) VALUES (:id, :public_id, :genome_id, :gene_id, :ensembl, :refseq, :ncbi, :gene_symbol);",
@@ -361,7 +361,7 @@ cursor.execute(
 
 cursor.execute(
     f"""
-    CREATE TABLE expression_types (
+    CREATE TABLE gex_types (
         id INTEGER PRIMARY KEY,
         public_id TEXT NOT NULL UNIQUE,
         name TEXT NOT NULL UNIQUE,
@@ -370,18 +370,18 @@ cursor.execute(
 )
 
 cursor.execute(
-    f"INSERT INTO expression_types (id, public_id, name) VALUES (1, '{uuid.uuid7()}', 'Counts');"
+    f"INSERT INTO gex_types (id, public_id, name) VALUES (1, '{uuid.uuid7()}', 'Counts');"
 )
 cursor.execute(
-    f"INSERT INTO expression_types (id, public_id, name) VALUES (2, '{uuid.uuid7()}', 'CPM');"
-)
-
-cursor.execute(
-    f"INSERT INTO expression_types (id, public_id, name) VALUES (3, '{uuid.uuid7()}', 'log1p(CPM)');"
+    f"INSERT INTO gex_types (id, public_id, name) VALUES (2, '{uuid.uuid7()}', 'CPM');"
 )
 
 cursor.execute(
-    f"INSERT INTO expression_types (id, public_id, name, description) VALUES (4, '{uuid.uuid7()}', 'Normalized', 'Seurat log1p((counts / total_counts_per_cell) * 10000)');"
+    f"INSERT INTO gex_types (id, public_id, name) VALUES (3, '{uuid.uuid7()}', 'log1p(CPM)');"
+)
+
+cursor.execute(
+    f"INSERT INTO gex_types (id, public_id, name, description) VALUES (4, '{uuid.uuid7()}', 'Normalized', 'Seurat log1p((counts / total_counts_per_cell) * 10000)');"
 )
 
 expression_type_map = {"Counts": 1, "CPM": 2, "log1p(CPM)": 3, "Normalized": 4}
@@ -396,17 +396,17 @@ cursor.execute(
 )
 
 cursor.execute(
-    f""" CREATE TABLE expression (
+    f""" CREATE TABLE gex (
 	id INTEGER PRIMARY KEY,
     public_id TEXT NOT NULL UNIQUE,
     gene_id INTEGER NOT NULL,
-    expression_type_id INTEGER NOT NULL,
+    gex_type_id INTEGER NOT NULL,
     dataset_id INTEGER NOT NULL,
 	offset INTEGER NOT NULL,
 	size INTEGER NOT NULL,
     file_id INTEGER NOT NULL,
     version INTEGER NOT NULL DEFAULT 1,
-    FOREIGN KEY(expression_type_id) REFERENCES expression_types(id),
+    FOREIGN KEY(gex_type_id) REFERENCES gex_types(id),
     FOREIGN KEY (dataset_id) REFERENCES datasets(id),
     FOREIGN KEY(gene_id) REFERENCES genes(id),
     FOREIGN KEY(file_id) REFERENCES files(id)
@@ -597,7 +597,7 @@ for di, dataset in enumerate(datasets):
             #                 ,
             #             )
 
-            if f.endswith(".bin"):
+            if f.endswith(".gex"):
                 # cursor.execute(f)
                 relative_file = os.path.join(relative_dir, f)
                 file = os.path.join(root_dir, relative_file)
@@ -685,7 +685,7 @@ for di, dataset in enumerate(datasets):
 
                         if gene_index in used_gene_ids:
                             print(
-                                f"Gene {gene_symbol} with gene id {gene_id} {gene_index} already used, skipping duplicate in file {file}"
+                                f"xene {gene_symbol} with gene id {gene_id} {gene_index} already used, new: {ensembl_id} old: {used_gene_ids[gene_index]}"
                             )
 
                         print("Size:", size, ensembl_id, gene_symbol, file)
@@ -697,7 +697,7 @@ for di, dataset in enumerate(datasets):
                             # log the offset and size in the db so we can search
                             # for a gene and then know where to find it in the file
                             cursor.execute(
-                                f"""INSERT INTO expression (id, public_id, dataset_id, gene_id, expression_type_id, offset, size, file_id) VALUES (
+                                f"""INSERT INTO gex (id, public_id, dataset_id, gene_id, gex_type_id, offset, size, file_id) VALUES (
                                         {expression_id}, 
                                         '{gex_id}', 
                                         {dataset_index}, 
@@ -717,7 +717,7 @@ for di, dataset in enumerate(datasets):
                         # skip in file to next record
                         fin.seek(dat_offset, 0)
 
-                        used_gene_ids[gene_index] = gene_symbol
+                        used_gene_ids[gene_index] = ensembl_id
 
     cursor.execute("COMMIT;")
 

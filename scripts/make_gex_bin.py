@@ -2,6 +2,7 @@ import argparse
 import gzip
 import json
 import os
+import re
 import struct
 import sys
 from os import path
@@ -13,10 +14,12 @@ from nanoid import generate
 from scipy import sparse
 
 VERSION = 1
+DIR = "../data/modules/scrna"
 
 
-def write_entries(block: int, genes: int, buffer: bytes):
-    fout = path.join(dir, f"gex_{block}.bin")
+def write_entries(dir: str, block: int, genes: int, buffer: bytes):
+
+    fout = path.join(dir, f"block{block}.gex")
 
     with open(fout, "wb") as f:
         f.write(struct.pack("<I", 42))  # magic
@@ -31,27 +34,36 @@ def write_entries(block: int, genes: int, buffer: bytes):
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-n", "--name", help="name")
-parser.add_argument("-i", "--institution", help="institution")
-parser.add_argument("-s", "--species", help="species", default="Human")
-parser.add_argument("-a", "--assembly", help="assembly", default="GRCh38")
-parser.add_argument("-d", "--dir", help="dir")
-parser.add_argument("-c", "--cells", help="cells")
-parser.add_argument("-l", "--clusters", help="clusters")
-parser.add_argument("-f", "--file", help="file")
+# parser.add_argument("-i", "--institution", help="institution")
+# parser.add_argument("-s", "--species", help="species", default="Human")
+# parser.add_argument("-a", "--assembly", help="assembly", default="GRCh38")
+parser.add_argument("-d", "--dir", default=DIR, help="dir")
+# parser.add_argument("-c", "--cells", help="cells")
+# parser.add_argument("-l", "--clusters", help="clusters")
+# parser.add_argument("-f", "--file", help="file")
 parser.add_argument("-b", "--blocksize", help="block size", default=2048, type=int)
 parser.add_argument("-m", "--minexp", help="minimum expression", default=1, type=float)
 
 
 args = parser.parse_args()
-file = args.file
+# file = args.file
 dir = args.dir
-name = args.name
-institution = args.institution
-species = args.species
-assembly = args.assembly
-gex_dir = os.path.join(dir, "gex")
+# name = args.name
+# institution = args.institution
+# species = args.species
+# assembly = args.assembly
+
+# gex_dir = os.path.join(dir, "gex")
+
 block_size = args.blocksize
 min_exp = args.minexp
+
+
+with open("datasets.json") as f:
+    datasets = json.load(f)
+
+print(datasets)
+
 
 # BLOCK_SIZE = 4096  # 2^16 256
 print(block_size, file=sys.stderr)
@@ -121,202 +133,200 @@ for i, gene_symbol in enumerate(df_hugo["Approved symbol"].values):
     gene_ids.append(hugo)
 
 
-df_cells = pd.read_csv(args.cells, sep="\t", header=0)
-df_clusters = pd.read_csv(args.clusters, sep="\t", header=0)
+for dataset in datasets:
 
-cell_idx_in_use = np.where(df_cells["Cluster"].isin(df_clusters["Cluster"].values))[0]
-cells_not_in_use = np.where(~df_cells["Cluster"].isin(df_clusters["Cluster"].values))[0]
+    df_cells = pd.read_csv(dataset["cells"], sep="\t", header=0)
+    df_clusters = pd.read_csv(dataset["clusters"], sep="\t", header=0)
 
-df_cells = df_cells[df_cells["Cluster"].isin(df_clusters["Cluster"].values)]
+    cell_idx_in_use = np.where(df_cells["Cluster"].isin(df_clusters["Cluster"].values))[
+        0
+    ]
 
-# use cells to count cells in each cluster
-counts = []
+    cells_not_in_use = np.where(
+        ~df_cells["Cluster"].isin(df_clusters["Cluster"].values)
+    )[0]
 
-for c in df_clusters["Cluster"].values:
-    count = len(df_cells[df_cells["Cluster"] == c])
-    counts.append(count)
+    df_cells = df_cells[df_cells["Cluster"].isin(df_clusters["Cluster"].values)]
 
-df_clusters["Cells"] = counts
+    for file in dataset["data"]:
+        f = (
+            gzip.open(file["source"], "r")
+            if ".gz" in file["source"]
+            else open(file["source"], "r")
+        )
 
+        # skip header
+        f.readline()
 
-# print all rows msgpack
-f = gzip.open(file, "r")
+        c = 0
+        block = 1
 
-# skip header
-f.readline()
+        # maximum number of cells
+        cells = df_cells.shape[0]
+        print("Cells", cells)
 
-c = 0
-block = 1
-
-# maximum number of cells
-cells = df_cells.shape[0]
-print("Cells", cells)
-
-
-genes = 0
-buf = bytearray()
-
-for line in f:
-    tokens = line.decode().strip().split("\t")
-    g = tokens[0]
-
-    gids = g.split(";")
-
-    # print(g)
-    # ensembl, symbol = g.split(";")
-
-    hugo = ""
-
-    for gid in gids:
-        if gid in gene_id_map:
-            hugo = gene_id_map[gid]
-            break
-
-        if gid in alias_gene_id_map:
-            hugo = alias_gene_id_map[gid]
-            break
-
-        if gid in prev_gene_id_map:
-            hugo = prev_gene_id_map[gid]
-            break
-
-    if hugo == "":
-        # print(f"reject, unknown gene {g}", file=sys.stderr)
-        continue
-
-    # print(f"accept {g} as {hugo}", file=sys.stderr)
-
-    official = official_symbols[hugo]
-    ensembl = official["ensembl"]
-    symbol = official["gene_symbol"]
-
-    data = np.array([float(x) for x in tokens[1:]])
-
-    # keep only cells in use
-    data = data[cell_idx_in_use]
-
-    s = np.sum(data)
-
-    if s == 0:
-        # print("reject, no exp", g)
-        continue
-
-    # reject if not expressed above min_exp in any cell
-    data[data < min_exp] = 0
-
-    # keep only non-zero entries
-    idx = np.where(data > 0)[0]
-
-    # if idx.size < data.size:
-    #    print("reject, not enough cells", idx.size, data.size)
-    # pairs = [[float(i), float(data[i])] for i in idx]
-    # values = [x for pair in pairs for x in pair]
-
-    # if len(idx) < 20:
-    # print("reject, not enough cells", g)
-    #    continue
-
-    # sparse_matrix = sparse.coo_matrix(data)
-    # # row unnecessary as we are looking at individual rows
-
-    # # we record only the columns with non-zero values
-    # sparse_data = [
-    #     [int(c), round(float(v), 4)]
-    #     for r, c, v in zip(sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)
-    # ]
-
-    # flatten
-    # sparse_data = [item for sublist in sparse_data for item in sublist]
-
-    gene_id_bytes = ensembl.encode("utf-8")
-    gene_symbol_bytes = symbol.encode("utf-8")
-    num_values = len(idx)
-    total_length = (
-        4  # size of total length field itself
-        + 2  # size of gene_id string length field
-        + len(gene_id_bytes)  # size of gene_id string
-        + 2  # size of gene_symbol string length field
-        + len(gene_symbol_bytes)  # size of gene_symbol string
-        + 4  # number of index,value pairs to read
-        + num_values
-        * (
-            4 + 4
-        )  # size of index and value pairs (4 bytes for index, 4 bytes for value)
-    )
-
-    # print(total_length)
-    # sys.exit(0)
-
-    buf += struct.pack("<I", total_length)
-
-    # Gene ID
-    buf += struct.pack("<H", len(gene_id_bytes))
-    buf += gene_id_bytes
-
-    # Gene symbol
-    buf += struct.pack("<H", len(gene_symbol_bytes))
-    buf += gene_symbol_bytes
-
-    # Number of float values
-    buf += struct.pack("<I", num_values)
-
-    # write indexes and values as binary
-    buf += struct.pack("<" + "I" * len(idx), *idx)
-    buf += struct.pack("<" + "f" * len(idx), *data[idx])  # values.tobytes()
-
-    # if out["s"] == "AHR":
-    #     print("AHR", out)
-
-    #     with open("AHR.json", "w") as f:
-    #         json.dump(out, f)
-
-    #     df = pd.DataFrame(sparse_data, columns=["Cell", "Exp"])
-    #     df.to_csv("AHR.tsv", sep="\t", index=False)
-
-    genes += 1
-
-    # bunch genes into blocks of 4096 genes
-    if genes == block_size:
-        # fout = path.join(dir, f"gex_{block}.json.gz")
-        # with gzip.open(fout, "wt", encoding="utf-8") as f:
-        #     json.dump(genes, f)
-
-        print(f"block {block} with {genes} genes")
-
-        # sys.exit(0)
-
-        write_entries(block, genes, buf)
-
-        # fout = path.join(dir, f"gex_{block}.dat")
-
-        # with open(fout, "wb") as f:
-        #     f.write(struct.pack("<B", 42))  # magic
-        #     f.write(struct.pack("<I", len(offsets)))  # number of entries
-
-        #     # write the offset and size of each msgpack object
-        #     # in the file
-        #     for offset in offsets:
-        #         f.write(
-        #             struct.pack("<I", offset[0])
-        #         )  # where to find a msgpack bytes each offset
-        #         f.write(
-        #             struct.pack("<I", offset[1])
-        #         )  # how much to read to decode the msgpack object 4 bytes each size
-
-        #     f.write(buffer)
+        out_dir = os.path.join(dir, file["path"])
+        print("Output dir:", out_dir)
+        os.makedirs(out_dir, exist_ok=True)
 
         genes = 0
         buf = bytearray()
-        block += 1
-        # break
 
-    c += 1
+        for line in f:
+            tokens = line.decode().strip().split("\t")
+            g = tokens[0]
 
-    if c % 1000 == 0:
-        print(c, file=sys.stderr)
+            gids = re.split("[;\|]", g)
 
-f.close()
+            # print(g)
+            # ensembl, symbol = g.split(";")
 
-# write any remaining genes
-if genes > 0:
-    write_entries(block, genes, buf)
+            hugo = ""
+
+            # first test ensembl
+            for gid in gids:
+                if gid.startswith("ENS"):
+                    if gid in gene_id_map:
+                        hugo = gene_id_map[gid]
+                        break
+
+                    if gid in alias_gene_id_map:
+                        hugo = alias_gene_id_map[gid]
+                        break
+
+                    if gid in prev_gene_id_map:
+                        hugo = prev_gene_id_map[gid]
+                        break
+
+            # fallback to symbol if ensembl not found, but only if the symbol is not a valid ensembl id (to avoid confusion)
+            if hugo == "":
+                for gid in gids:
+                    if not gid.startswith("ENS"):
+                        if gid in gene_id_map:
+                            hugo = gene_id_map[gid]
+                            break
+
+                        if gid in alias_gene_id_map:
+                            hugo = alias_gene_id_map[gid]
+                            break
+
+                        if gid in prev_gene_id_map:
+                            hugo = prev_gene_id_map[gid]
+                            break
+
+            if hugo == "":
+                # print(f"reject, unknown gene {g}", file=sys.stderr)
+                continue
+
+            # print(f"accept {g} as {hugo}", file=sys.stderr)
+
+            official = official_symbols[hugo]
+            ensembl = official["ensembl"]
+            symbol = official["gene_symbol"]
+
+            data = np.array([float(x) for x in tokens[1:]])
+
+            # keep only cells in use
+            data = data[cell_idx_in_use]
+
+            s = np.sum(data)
+
+            if s == 0:
+                # print("reject, no exp", g)
+                continue
+
+            # reject if not expressed above min_exp in any cell
+            data[data < min_exp] = 0
+
+            # keep only non-zero entries
+            idx = np.where(data > 0)[0]
+
+            # if idx.size < data.size:
+            #    print("reject, not enough cells", idx.size, data.size)
+            # pairs = [[float(i), float(data[i])] for i in idx]
+            # values = [x for pair in pairs for x in pair]
+
+            # if len(idx) < 20:
+            # print("reject, not enough cells", g)
+            #    continue
+
+            # sparse_matrix = sparse.coo_matrix(data)
+            # # row unnecessary as we are looking at individual rows
+
+            # # we record only the columns with non-zero values
+            # sparse_data = [
+            #     [int(c), round(float(v), 4)]
+            #     for r, c, v in zip(sparse_matrix.row, sparse_matrix.col, sparse_matrix.data)
+            # ]
+
+            # flatten
+            # sparse_data = [item for sublist in sparse_data for item in sublist]
+
+            gene_id_bytes = ensembl.encode("utf-8")
+            gene_symbol_bytes = symbol.encode("utf-8")
+            num_values = len(idx)
+            total_length = (
+                4  # size of total length field itself
+                + 2  # size of gene_id string length field
+                + len(gene_id_bytes)  # size of gene_id string
+                + 2  # size of gene_symbol string length field
+                + len(gene_symbol_bytes)  # size of gene_symbol string
+                + 4  # number of index,value pairs to read
+                + num_values
+                * (
+                    4 + 4
+                )  # size of index and value pairs (4 bytes for index, 4 bytes for value)
+            )
+
+            # print(total_length)
+            # sys.exit(0)
+
+            buf += struct.pack("<I", total_length)
+
+            # Gene ID
+            buf += struct.pack("<H", len(gene_id_bytes))
+            buf += gene_id_bytes
+
+            # Gene symbol
+            buf += struct.pack("<H", len(gene_symbol_bytes))
+            buf += gene_symbol_bytes
+
+            # Number of float values
+            buf += struct.pack("<I", num_values)
+
+            # write indexes and values as binary
+            buf += struct.pack("<" + "I" * len(idx), *idx)
+            buf += struct.pack("<" + "f" * len(idx), *data[idx])  # values.tobytes()
+
+            # if out["s"] == "AHR":
+            #     print("AHR", out)
+
+            #     with open("AHR.json", "w") as f:
+            #         json.dump(out, f)
+
+            #     df = pd.DataFrame(sparse_data, columns=["Cell", "Exp"])
+            #     df.to_csv("AHR.tsv", sep="\t", index=False)
+
+            genes += 1
+
+            # bunch genes into blocks of 4096 genes
+            if genes == block_size:
+                print(f"block {block} with {genes} genes")
+
+                write_entries(out_dir, block, genes, buf)
+
+                genes = 0
+                buf = bytearray()
+                block += 1
+                # break
+
+            c += 1
+
+            if c % 1000 == 0:
+                print(c, file=sys.stderr)
+
+        f.close()
+
+        # write any remaining genes
+        if genes > 0:
+            write_entries(out_dir, block, genes, buf)
