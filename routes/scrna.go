@@ -269,8 +269,6 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 
 		safeQuery := query.SanitizeQuery(q)
 
-		log.Debug().Msgf("safe %s", safeQuery)
-
 		ret, err := scrnadbcache.SearchGenes(datasetId, safeQuery, limit, isAdmin, user.Permissions)
 
 		if err != nil {
