@@ -130,7 +130,7 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 		// 	return
 		// }
 
-		assembly := c.Query("assembly")
+		assembly := c.Param("assembly")
 
 		if assembly == "" {
 			c.Error(errors.New("missing assembly"))
