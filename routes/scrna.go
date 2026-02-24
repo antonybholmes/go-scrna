@@ -8,7 +8,7 @@ import (
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
 	"github.com/antonybholmes/go-web"
-	"github.com/antonybholmes/go-web/auth"
+	"github.com/antonybholmes/go-web/auth/token"
 	"github.com/antonybholmes/go-web/middleware"
 	"github.com/gin-gonic/gin"
 )
@@ -121,7 +121,7 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 // }
 
 func ScrnaDatasetsRoute(c *gin.Context) {
-	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
+	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *token.AuthUserJwtClaims) {
 
 		// genome := c.Query("genome")
 
@@ -150,7 +150,7 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 
 // Gets expression data from a given dataset
 func ScrnaGexRoute(c *gin.Context) {
-	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
+	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *token.AuthUserJwtClaims) {
 
 		datasetId := c.Param("dataset")
 
@@ -199,7 +199,7 @@ func ScrnaGexRoute(c *gin.Context) {
 // }
 
 func ScrnaMetadataRoute(c *gin.Context) {
-	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
+	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *token.AuthUserJwtClaims) {
 
 		datasetId := c.Param("dataset")
 
@@ -241,7 +241,7 @@ func ScrnaMetadataRoute(c *gin.Context) {
 // }
 
 func ScrnaSearchGenesRoute(c *gin.Context) {
-	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *auth.AuthUserJwtClaims) {
+	middleware.JwtUserWithPermissionsRoute(c, func(c *gin.Context, isAdmin bool, user *token.AuthUserJwtClaims) {
 
 		datasetId := c.Param("dataset")
 
