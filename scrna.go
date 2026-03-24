@@ -85,10 +85,10 @@ type (
 	}
 
 	SingleCell struct {
-		SampleName string `json:"sampleName"`
-		Barcode    string `json:"barcode,omitempty"`
+		Sample  string `json:"sample"`
+		Barcode string `json:"barcode,omitempty"`
 		Pos
-		ClusterLabel int `json:"clusterLabel"`
+		Cluster int `json:"cluster"`
 	}
 
 	DatasetMetadata struct {
@@ -272,7 +272,7 @@ const (
 		WHERE
 			<<PERMISSIONS>>
 			AND d.public_id = :id
-		ORDER BY c.name, m.name`
+		ORDER BY c.id, m.name`
 
 	CellsSql = `SELECT
 		c.umap_x,
@@ -807,8 +807,8 @@ func (sdb *ScrnaDB) Metadata(datasetId string, isAdmin bool, permissions []strin
 
 			&cell.Pos.X,
 			&cell.Pos.Y,
-			&cell.SampleName,
-			&cell.ClusterLabel)
+			&cell.Sample,
+			&cell.Cluster)
 
 		if err != nil {
 			return nil, err
