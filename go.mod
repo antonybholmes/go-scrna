@@ -7,14 +7,14 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20260414211834-526fb62c6da0
+	github.com/antonybholmes/go-sys v0.0.0-20260422134523-dadad00d6c60
 	github.com/gin-gonic/gin v1.12.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
 
 require (
 	github.com/bytedance/gopkg v0.1.4 // indirect
-	github.com/bytedance/sonic v1.15.0 // indirect
+	github.com/bytedance/sonic v1.15.1 // indirect
 	github.com/bytedance/sonic/loader v0.5.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/cloudwego/base64x v0.1.6 // indirect
@@ -56,7 +56,7 @@ require (
 	github.com/xuri/excelize/v2 v2.10.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/xyproto/randomstring v1.2.0 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.5.1 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
 	golang.org/x/arch v0.26.0 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/net v0.53.0 // indirect
@@ -66,9 +66,9 @@ require (
 )
 
 require (
-	github.com/antonybholmes/go-web v0.0.0-20260414211828-e0b24128d77c
+	github.com/antonybholmes/go-web v0.0.0-20260422134515-67bdf56b3a29
 	github.com/mattn/go-colorable v0.1.14 // indirect
-	github.com/mattn/go-isatty v0.0.21 // indirect
+	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	golang.org/x/sys v0.43.0 // indirect
