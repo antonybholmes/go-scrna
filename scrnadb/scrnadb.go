@@ -5,7 +5,7 @@ import (
 
 	"github.com/antonybholmes/go-scrna"
 	"github.com/antonybholmes/go-scrna/dat"
-	"github.com/antonybholmes/go-sys"
+	"github.com/antonybholmes/go-sys/db"
 )
 
 var (
@@ -29,11 +29,11 @@ func Dir() string {
 	return instance.Dir()
 }
 
-func Genomes() ([]*sys.Entity, error) {
+func Genomes() ([]*db.Entity, error) {
 	return instance.Genomes()
 }
 
-func Assemblies(genome string) ([]*sys.Entity, error) {
+func Assemblies(genome string) ([]*db.Entity, error) {
 	return instance.Assemblies(genome)
 }
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/antonybholmes/go-scrna/dat"
 	"github.com/antonybholmes/go-sys"
+	"github.com/antonybholmes/go-sys/db"
 	"github.com/antonybholmes/go-sys/log"
 	"github.com/antonybholmes/go-sys/query"
 	"github.com/antonybholmes/go-web"
@@ -314,7 +315,7 @@ func NewScrnaDB(dir string) *ScrnaDB {
 
 	// defer db.Close()
 
-	return &ScrnaDB{dir: dir, db: sys.Must(sql.Open(sys.Sqlite3DB, filepath.Join(dir, "scrna.db"+sys.SqliteReadOnlySuffix)))}
+	return &ScrnaDB{dir: dir, db: sys.Must(sql.Open(db.Sqlite3DB, filepath.Join(dir, "scrna.db"+db.SqliteReadOnlySuffix)))}
 }
 
 func (sdb *ScrnaDB) Dir() string {
@@ -349,9 +350,9 @@ func (sdb *ScrnaDB) Close() error {
 // 	return ret, nil
 // }
 
-func (sdb *ScrnaDB) Genomes() ([]*sys.Entity, error) {
+func (sdb *ScrnaDB) Genomes() ([]*db.Entity, error) {
 
-	genomes := make([]*sys.Entity, 0, 10)
+	genomes := make([]*db.Entity, 0, 10)
 
 	rows, err := sdb.db.Query(GenomesSQL)
 
@@ -362,7 +363,7 @@ func (sdb *ScrnaDB) Genomes() ([]*sys.Entity, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var genome sys.Entity
+		var genome db.Entity
 
 		err := rows.Scan(&genome.Id, &genome.PublicId, &genome.Name)
 
@@ -376,9 +377,9 @@ func (sdb *ScrnaDB) Genomes() ([]*sys.Entity, error) {
 	return genomes, nil
 }
 
-func (sdb *ScrnaDB) Assemblies(genome string) ([]*sys.Entity, error) {
+func (sdb *ScrnaDB) Assemblies(genome string) ([]*db.Entity, error) {
 
-	assemblies := make([]*sys.Entity, 0, 10)
+	assemblies := make([]*db.Entity, 0, 10)
 
 	rows, err := sdb.db.Query(AssembliesSql, sql.Named("genome", web.FormatParam(genome)))
 
@@ -389,7 +390,7 @@ func (sdb *ScrnaDB) Assemblies(genome string) ([]*sys.Entity, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var assembly sys.Entity
+		var assembly db.Entity
 
 		err := rows.Scan(&assembly.Id, &assembly.PublicId, &assembly.Name)
 
