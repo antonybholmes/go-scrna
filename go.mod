@@ -7,7 +7,7 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20260430223651-c5b58e98c9c6
+	github.com/antonybholmes/go-sys v0.0.0-20260609172735-8ea2a7623e43
 	github.com/gin-gonic/gin v1.12.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
@@ -56,17 +56,17 @@ require (
 	github.com/xuri/excelize/v2 v2.10.1 // indirect
 	github.com/xuri/nfp v0.0.2-0.20250530014748-2ddeb826f9a9 // indirect
 	github.com/xyproto/randomstring v1.2.0 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.6.0 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.6.1 // indirect
 	golang.org/x/arch v0.28.0 // indirect
 	golang.org/x/crypto v0.53.0 // indirect
-	golang.org/x/net v0.55.0 // indirect
+	golang.org/x/net v0.56.0 // indirect
 	golang.org/x/sync v0.21.0 // indirect
 	golang.org/x/text v0.38.0 // indirect
 	google.golang.org/protobuf v1.36.11 // indirect
 )
 
 require (
-	github.com/antonybholmes/go-web v0.0.0-20260507192747-220468103979
+	github.com/antonybholmes/go-web v0.0.0-20260609172727-db410cd5d5a1
 	github.com/mattn/go-colorable v0.1.15 // indirect
 	github.com/mattn/go-isatty v0.0.22 // indirect
 	github.com/rs/zerolog v1.35.1 // indirect
