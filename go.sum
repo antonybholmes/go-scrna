@@ -1,3 +1,7 @@
+github.com/antonybholmes/go-sys v0.0.0-20260616152946-01b9b0d3a79b h1:7q4rq8L59+jljUQ01zJ+oq+7pVm2CoOG8u0KtO3axPs=
+github.com/antonybholmes/go-sys v0.0.0-20260616152946-01b9b0d3a79b/go.mod h1:r0W8J4WwCbwfKZfPDXKrYNwj1LfaUSbLIo7BAf0cl2g=
+github.com/antonybholmes/go-web v0.0.0-20260616152938-8bbbbc57a69d h1:jLUToFhNXH1ZSprM0U5tcwERpkl5JLGzTVYbcZt7SGY=
+github.com/antonybholmes/go-web v0.0.0-20260616152938-8bbbbc57a69d/go.mod h1:/yjp4yOD7RZ/+AXfa/RUp2UYtmxZna8zw49asFTjhMU=
 github.com/bsm/ginkgo/v2 v2.12.0 h1:Ny8MWAHyOepLGlLKYmXG4IEkioBysk6GpaRTLC8zwWs=
 github.com/bsm/ginkgo/v2 v2.12.0/go.mod h1:SwYbGRRDovPVboqFv0tPTcG1sN61LM1Z4ARdbAV9g4c=
 github.com/bsm/gomega v1.27.10 h1:yeMWxP2pV2fG3FgAODIY8EiRE3dy0aeFYt4l7wh6yKA=
