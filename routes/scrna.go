@@ -52,7 +52,7 @@ func parseParamsFromPost(c *gin.Context) (*ScrnaParams, error) {
 
 func ScrnaGenomesRoute(c *gin.Context) {
 
-	types, err := scrnadbcache.Genomes()
+	types, err := scrnadbcache.Instance().Genomes()
 
 	if err != nil {
 		c.Error(err)
@@ -73,7 +73,7 @@ func ScrnaAssembliesRoute(c *gin.Context) {
 	// 	return
 	// }
 
-	assemblies, err := scrnadbcache.Assemblies(genome) //gexdbcache.Technologies()
+	assemblies, err := scrnadbcache.Instance().Assemblies(genome) //gexdbcache.Technologies()
 
 	if err != nil {
 		c.Error(err)
@@ -138,7 +138,7 @@ func ScrnaDatasetsRoute(c *gin.Context) {
 		}
 
 		// Get the datasets the user has permission to view
-		datasets, err := scrnadbcache.Datasets(assembly, isAdmin, user.Permissions)
+		datasets, err := scrnadbcache.Instance().Datasets(assembly, isAdmin, user.Permissions)
 		if err != nil {
 			c.Error(err)
 			return
@@ -169,7 +169,7 @@ func ScrnaGexRoute(c *gin.Context) {
 		log.Debug().Msgf("getting gex for dataset %s genes=%v", datasetId, params.Genes)
 
 		// default to rna-seq
-		ret, err := scrnadbcache.Gex(datasetId, params.Genes, isAdmin, user.Permissions)
+		ret, err := scrnadbcache.Instance().Gex(datasetId, params.Genes, isAdmin, user.Permissions)
 
 		if err != nil {
 			c.Error(err)
@@ -208,7 +208,7 @@ func ScrnaMetadataRoute(c *gin.Context) {
 			return
 		}
 
-		ret, err := scrnadbcache.Metadata(datasetId, isAdmin, user.Permissions)
+		ret, err := scrnadbcache.Instance().Metadata(datasetId, isAdmin, user.Permissions)
 
 		if err != nil {
 			c.Error(err)
@@ -269,7 +269,7 @@ func ScrnaSearchGenesRoute(c *gin.Context) {
 
 		safeQuery := query.SanitizeQuery(q)
 
-		ret, err := scrnadbcache.SearchGenes(datasetId, safeQuery, limit, isAdmin, user.Permissions)
+		ret, err := scrnadbcache.Instance().SearchGenes(datasetId, safeQuery, limit, isAdmin, user.Permissions)
 
 		if err != nil {
 			c.Error(err)
