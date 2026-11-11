@@ -7,8 +7,8 @@ replace github.com/antonybholmes/go-web => ../go-web
 replace github.com/antonybholmes/go-sys => ../go-sys
 
 require (
-	github.com/antonybholmes/go-sys v0.0.0-20260908140228-8e2f77b20bfe
-	github.com/antonybholmes/go-web v0.0.0-20260908135751-3b983ccb8f07
+	github.com/antonybholmes/go-sys v0.0.0-20261110151334-69bf4fef33df
+	github.com/antonybholmes/go-web v0.0.0-20261110234949-65d799daa5ac
 	github.com/gin-gonic/gin v1.12.0
 	github.com/vmihailenco/msgpack/v5 v5.4.1
 )
@@ -62,7 +62,7 @@ require (
 	github.com/xyproto/randomstring v1.2.0 // indirect
 	go.mongodb.org/mongo-driver/v2 v2.10.0 // indirect
 	golang.org/x/arch v0.33.0 // indirect
-	golang.org/x/crypto v0.58.0 // indirect
+	golang.org/x/crypto v0.59.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/sync v0.25.0 // indirect
 	golang.org/x/sys v0.50.0 // indirect
