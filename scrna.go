@@ -374,14 +374,23 @@ func (sdb *ScrnaDB) Genomes() ([]*db.Entity, error) {
 		genomes = append(genomes, &genome)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return genomes, nil
 }
 
 func (sdb *ScrnaDB) Assemblies(genome string) ([]*db.Entity, error) {
 
+	genome, err := web.FormatParam(genome)
+	if err != nil {
+		return nil, err
+	}
+
 	assemblies := make([]*db.Entity, 0, 10)
 
-	rows, err := sdb.db.Query(AssembliesSql, sql.Named("genome", web.FormatParam(genome)))
+	rows, err := sdb.db.Query(AssembliesSql, sql.Named("genome", genome))
 
 	if err != nil {
 		return nil, err
@@ -401,6 +410,10 @@ func (sdb *ScrnaDB) Assemblies(genome string) ([]*db.Entity, error) {
 		assemblies = append(assemblies, &assembly)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return assemblies, nil
 }
 
@@ -408,7 +421,10 @@ func (sdb *ScrnaDB) Datasets(assembly string, isAdmin bool, permissions []string
 
 	namedArgs := []any{sql.Named("assembly", strings.ToLower(assembly))}
 
-	query := sqlite.MakePermissionsSql(DatasetsSql, isAdmin, permissions, &namedArgs)
+	query, err := sqlite.MakePermissionsSql(DatasetsSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	datasets := make([]*Dataset, 0, 10)
 
@@ -454,6 +470,10 @@ func (sdb *ScrnaDB) Datasets(assembly string, isAdmin bool, permissions []string
 		// }
 
 		datasets = append(datasets, &dataset)
+	}
+
+	if err := datasetRows.Err(); err != nil {
+		return nil, err
 	}
 
 	return datasets, nil
@@ -502,11 +522,14 @@ func (sdb *ScrnaDB) dataset(datasetId string, isAdmin bool, permissions []string
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(DatasetSql, isAdmin, permissions, &namedArgs)
+	query, err := sqlite.MakePermissionsSql(DatasetSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	var dataset Dataset
 
-	err := sdb.db.QueryRow(query, namedArgs...).Scan(
+	err = sdb.db.QueryRow(query, namedArgs...).Scan(
 		&dataset.Id,
 		&dataset.Name,
 		&dataset.Institution,
@@ -528,7 +551,10 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 		//sql.Named("q", fmt.Sprintf("%%%s%%", q)),
 		sql.Named("limit", limit)}
 
-	stmt := sqlite.MakePermissionsSql(SearchGenesSql, isAdmin, permissions, &namedArgs)
+	stmt, err := sqlite.MakePermissionsSql(SearchGenesSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	where, err := query.SqlBoolQuery(q, func(placeholderIndex int, value string, addParens bool) string {
 		log.Debug().Msgf("search gene q: %s %s", q, value)
@@ -568,6 +594,10 @@ func (sdb *ScrnaDB) SearchGenes(datasetId string, q string, limit int, isAdmin b
 		ret = append(ret, &gene)
 	}
 
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
 	return ret, nil
 }
 
@@ -575,7 +605,10 @@ func (sdb *ScrnaDB) GetGenes(datasetId string, geneIds []string, isAdmin bool, p
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(FindGenesSql, isAdmin, permissions, &namedArgs)
+	query, err := sqlite.MakePermissionsSql(FindGenesSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	//log.Debug().Msgf("find genes sql: %s %v", query, namedArgs)
 
@@ -608,6 +641,10 @@ func (sdb *ScrnaDB) GetGenes(datasetId string, geneIds []string, isAdmin bool, p
 		}
 		// add as many genes as possible
 		ret = append(ret, &gene)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return ret, nil
@@ -739,7 +776,10 @@ func (sdb *ScrnaDB) Metadata(datasetId string, isAdmin bool, permissions []strin
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(ClustersSql, isAdmin, permissions, &namedArgs)
+	query, err := sqlite.MakePermissionsSql(ClustersSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := sdb.db.Query(query, namedArgs...)
 
@@ -834,7 +874,10 @@ func (sdb *ScrnaDB) Genes(datasetId string, isAdmin bool, permissions []string) 
 
 	namedArgs := []any{sql.Named("id", datasetId)}
 
-	query := sqlite.MakePermissionsSql(GenesSql, isAdmin, permissions, &namedArgs)
+	query, err := sqlite.MakePermissionsSql(GenesSql, isAdmin, permissions, &namedArgs)
+	if err != nil {
+		return nil, err
+	}
 
 	rows, err := sdb.db.Query(query, namedArgs...)
 
@@ -857,6 +900,10 @@ func (sdb *ScrnaDB) Genes(datasetId string, isAdmin bool, permissions []string) 
 		}
 
 		ret = append(ret, &gene)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
 	}
 
 	return ret, nil
